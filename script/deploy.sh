@@ -1,9 +1,9 @@
 #!/bin/bash
 # Deployment script for FastAPI WebSocket application
-# This runs on EC2 via AWS CodePipeline (SSM agent)
+# Runs on EC2 via AWS CodePipeline + SSM agent
 
-set -e  # Exit immediately if any command fails
-set -u  # Exit if undefined variable is used
+set -e  # Exit on error (we'll disable for non-critical commands)
+set -u  # Exit on undefined variables
 
 # ==========================================
 # CONFIGURATION
@@ -14,7 +14,6 @@ APP_USER="ec2-user"
 PYTHON_BIN="/usr/bin/python3"
 VENV_DIR="$APP_DIR/venv"
 
-# Logging function
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
@@ -26,9 +25,6 @@ log "=========================================="
 # ==========================================
 # STEP 1: Setup Application Directory
 # ==========================================
-# Why: We need a persistent location for our app
-# CodePipeline extracts files to a temporary location, we copy to permanent one
-
 log "Step 1: Setting up application directory"
 
 if [ ! -d "$APP_DIR" ]; then
@@ -42,21 +38,17 @@ fi
 # ==========================================
 # STEP 2: Copy New Code
 # ==========================================
-# Why: CodePipeline extracted your repo to current directory
+# CodePipeline extracts your GitHub repo to current working directory
 # We need to copy it to our permanent app location
-
 log "Step 2: Copying application files"
 
-# Current directory contains your repo files
 log "Current directory: $(pwd)"
 log "Files in current directory:"
 ls -la
 
-# Copy everything to app directory (excluding .git if present)
 log "Copying files to $APP_DIR"
 rsync -av --exclude='.git' --exclude='venv' ./ "$APP_DIR/"
 
-# Set proper permissions
 sudo chown -R $APP_USER:$APP_USER "$APP_DIR"
 
 log "Files copied successfully"
@@ -64,9 +56,8 @@ log "Files copied successfully"
 # ==========================================
 # STEP 3: Setup Python Virtual Environment
 # ==========================================
-# Why: Isolate dependencies from system Python
-# Prevents conflicts and makes dependency management clean
-
+# Your AMI already created this via user data
+# This just ensures it exists if AMI didn't run properly
 log "Step 3: Setting up Python virtual environment"
 
 cd "$APP_DIR"
@@ -78,8 +69,6 @@ else
     log "Virtual environment already exists"
 fi
 
-# Activate virtual environment
-# Why: All pip installs and python commands use this isolated environment
 source "$VENV_DIR/bin/activate"
 
 log "Virtual environment activated: $(which python)"
@@ -87,63 +76,66 @@ log "Virtual environment activated: $(which python)"
 # ==========================================
 # STEP 4: Install/Update Dependencies
 # ==========================================
-# Why: Install FastAPI, OpenAI SDK, and other requirements
-# This reads your requirements.txt
-
+# CRITICAL FIX: Removed --no-deps flag
+# --no-deps prevents installing sub-dependencies which breaks packages
 log "Step 4: Checking Python dependencies"
-if [ -f "requirements.txt" ]; then
-    log "Updating dependencies if needed"
-    pip install --upgrade --no-deps -r requirements.txt  # Only updates changed packages
-else
-    log "No requirements.txt found, using AMI dependencies"
-fi
-# ==========================================
-# STEP 6: Stop Old Application  Process
-# ==========================================
-# Why: We need to restart the app with new code
-# Kill old process gracefully
 
+if [ -f "requirements.txt" ]; then
+    log "Found requirements.txt, updating dependencies"
+    pip install --upgrade -r requirements.txt
+    log "Dependencies updated successfully"
+else
+    log "No requirements.txt found, using AMI pre-installed packages"
+fi
+
+# ==========================================
+# STEP 5: Verify Critical Files
+# ==========================================
+log "Step 5: Verifying application files"
+
+if [ ! -f "app.py" ]; then
+    log "ERROR: app.py not found in $APP_DIR"
+    log "Directory contents:"
+    ls -la "$APP_DIR"
+    exit 1
+fi
+
+log "✓ app.py found"
+
+# ==========================================
+# STEP 6: Stop Old Application Process
+# ==========================================
+# CRITICAL FIX: Disable 'set -e' because pkill returns exit code 1
+# if no process found, which would stop the whole script
 log "Step 6: Stopping old application process"
 
-# Find and kill any running uvicorn processes for this app
-# Why: pkill finds processes by name pattern
+set +e  # Don't exit on error for this section
+
 if pgrep -f "uvicorn app:app" > /dev/null; then
     log "Found running application process, stopping it..."
-    pkill -f "uvicorn app:app" || true
     
-    # Wait for process to die
-    sleep 2
+    pkill -f "uvicorn app:app"  # Send SIGTERM (graceful)
+    sleep 3
     
-    # Force kill if still running
     if pgrep -f "uvicorn app:app" > /dev/null; then
-        log "Force killing stubborn process"
-        pkill -9 -f "uvicorn app:app" || true
+        log "Process still running, force killing..."
+        pkill -9 -f "uvicorn app:app"  # Send SIGKILL (force)
+        sleep 1
     fi
     
     log "Old process stopped"
 else
-    log "No running process found"
+    log "No running process found (this is fine)"
 fi
+
+set -e  # Re-enable exit on error
 
 # ==========================================
 # STEP 7: Start New Application
 # ==========================================
-# Why: Launch your FastAPI app with the new code
-
 log "Step 7: Starting new application"
 
 cd "$APP_DIR"
-
-# Start uvicorn in background
-# Why each flag:
-# - uvicorn: ASGI server for FastAPI
-# - app:app: module_name:app_instance (your app.py file, FastAPI() instance)
-# - --host 0.0.0.0: Listen on all network interfaces (allows external access)
-# - --port 8000: Port to listen on
-# - nohup: Keeps running after SSH disconnect
-# - > /var/log/fastapi.log: Redirect stdout to log file
-# - 2>&1: Redirect stderr to same log file
-# - &: Run in background
 
 log "Starting uvicorn server"
 nohup "$VENV_DIR/bin/python" -m uvicorn app:app \
@@ -152,32 +144,38 @@ nohup "$VENV_DIR/bin/python" -m uvicorn app:app \
     --log-level info \
     > /var/log/fastapi.log 2>&1 &
 
-# Save the process ID
 APP_PID=$!
 log "Application started with PID: $APP_PID"
 
-# Wait a moment for app to start
-sleep 3
+sleep 5  # Give app time to start
 
 # ==========================================
 # STEP 8: Verify Application is Running
 # ==========================================
-# Why: Make sure deployment actually worked
-
 log "Step 8: Verifying application"
 
 if pgrep -f "uvicorn app:app" > /dev/null; then
-    log "✓ Application is running"
+    log "✓ Application process is running"
     
-    # Try to curl the health endpoint
-    if curl -f http://localhost:8000/ > /dev/null 2>&1; then
-        log "✓ Application responding to HTTP requests"
+    set +e  # Don't exit if curl fails
+    
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ 2>/dev/null || echo "000")
+    
+    if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
+        log "✓ Application responding to HTTP requests (HTTP $HTTP_CODE)"
     else
-        log "⚠ Application running but not responding yet (may still be starting)"
+        log "⚠ Application running but may not be ready yet (HTTP $HTTP_CODE)"
+        log "Check logs: tail -f /var/log/fastapi.log"
+        log "Last 20 lines of application log:"
+        tail -n 20 /var/log/fastapi.log | tee -a "$LOG_FILE"
     fi
+    
+    set -e
 else
     log "✗ ERROR: Application failed to start!"
-    log "Check logs: tail -f /var/log/fastapi.log"
+    log "=== Last 30 lines of application log ==="
+    tail -n 30 /var/log/fastapi.log | tee -a "$LOG_FILE"
+    log "======================================="
     exit 1
 fi
 
@@ -190,8 +188,13 @@ log "Deployment completed successfully!"
 log "=========================================="
 log "Application directory: $APP_DIR"
 log "Application logs: /var/log/fastapi.log"
-log "Application URL: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):8000"
-log "To view logs: tail -f /var/log/fastapi.log"
-log "To check status: pgrep -f 'uvicorn app:app'"
+
+PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "unknown")
+log "Application URL: http://$PUBLIC_IP:8000"
+
+log "Useful commands:"
+log "  View logs: tail -f /var/log/fastapi.log"
+log "  Check process: pgrep -f 'uvicorn app:app'"
+log "  Stop app: pkill -f 'uvicorn app:app'"
 
 exit 0
