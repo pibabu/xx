@@ -1,9 +1,3 @@
-"""
-AI Service Layer
-Handles all OpenAI/AI API logic
-Keeps main.py clean - separation of concerns
-"""
-
 import asyncio
 import os
 from dotenv import load_dotenv
