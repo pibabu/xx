@@ -165,9 +165,24 @@
 
       appendMessage('system', 'Connecting to server...');
       
+      // Show progress messages while waiting
+      const timeout1 = setTimeout(() => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          appendMessage('system', 'Dauert noch... Docker fährt hoch...');
+        }
+      }, 2000);
+      
+      const timeout2 = setTimeout(() => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          appendMessage('system', 'Hol dir noch nen Kaffee...');
+        }
+      }, 7000);
+      
       ws = new WebSocket(WS_URL);
 
       ws.onopen = () => {
+        clearTimeout(timeout1);
+        clearTimeout(timeout2);
         appendMessage('system', 'Connected to chat server');
         updateStatus(true);
       };
