@@ -2,7 +2,7 @@
 # Deployment script for FastAPI WebSocket application
 # Runs on EC2 via AWS CodePipeline + SSM agent
 
-set -e  # Exit on error (we'll disable for non-critical commands)
+#set -e  # Exit on error (we'll disable for non-critical commands)
 set -u  # Exit on undefined variables
 
 # ==========================================
