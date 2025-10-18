@@ -108,28 +108,6 @@ else
 fi
 
 # ==========================================
-# STEP 5: Setup Environment Variables
-# ==========================================
-# Why: Your app needs OPENAI_API_KEY and other secrets
-# Don't commit these to git!
-
-log "Step 5: Setting up environment variables"
-
-# Check if .env file exists
-# You should manually create this on EC2 with your secrets
-if [ ! -f "$APP_DIR/.env" ]; then
-    log "WARNING: .env file not found!"
-    log "Creating placeholder .env - YOU MUST UPDATE THIS WITH REAL VALUES"
-    cat > "$APP_DIR/.env" << 'EOF'
-OPENAI_API_KEY=your_openai_api_key_here
-# Add other environment variables as needed
-EOF
-    log "Please update $APP_DIR/.env with real values!"
-else
-    log ".env file exists"
-fi
-
-# ==========================================
 # STEP 6: Stop Old Application Process
 # ==========================================
 # Why: We need to restart the app with new code
