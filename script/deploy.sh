@@ -14,6 +14,20 @@ APP_USER="ec2-user"
 PYTHON_BIN="/usr/bin/python3"
 VENV_DIR="$APP_DIR/venv"
 
+
+# Create .env file with environment variables
+echo "Creating .env file..." | tee -a $LOG_FILE
+cat > $APP_DIR/.env << EOF
+OPENAI_API_KEY=${OPENAI_API_KEY}
+EOF
+
+# Secure the .env file (only owner can read/write)
+chmod 600 $APP_DIR/.env
+chown $APP_USER:$APP_USER $APP_DIR/.env
+
+echo ".env file created successfully" | tee -a $LOG_FILE
+
+
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
