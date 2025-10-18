@@ -8,9 +8,9 @@ set -u  # Exit if undefined variable is used
 # ==========================================
 # CONFIGURATION
 # ==========================================
-APP_DIR="/home/ubuntu/fastapi-app"
+APP_DIR="/home/ec2-user/fastapi-app"
 LOG_FILE="/var/log/fastapi-deploy.log"
-APP_USER="ubuntu"
+APP_USER="ec2-user"
 PYTHON_BIN="/usr/bin/python3"
 VENV_DIR="$APP_DIR/venv"
 
