@@ -38,9 +38,10 @@
         Reconnect
       </button>
     </div>
+
     <!-- Chat history container -->
-    <div id="chat-history" class="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
-<div class="text-gray-500 text-sm">
+    <div id="chat-history" class="flex-1 overflow-y-auto p-4 space-y-4" style="scrollbar-width: thin;">
+      <div class="text-gray-500 text-sm">
         <span class="text-terminal-prompt">System:</span> Terminal chat initialized. Waiting for connection...
       </div>
     </div>
@@ -61,30 +62,13 @@
       </div>
     </div>
   </div>
-  <style>
-    .scrollbar-hide::-webkit-scrollbar {
-      width: 2px;
-      height: 2px;
-    }
-    .scrollbar-hide::-webkit-scrollbar-thumb {
-      background: #4ade80;
-    }
-    .scrollbar-hide::-webkit-scrollbar-track {
-      background: transparent;
-    }
-  </style>
 
   <script>
     let ws = null;
     let currentAiMessage = null;
 
-    // Auto-focus input on page load
-    document.addEventListener('DOMContentLoaded', () => {
-      const input = document.getElementById('user-input');
-      input.focus();
-    });
 
-const WS_URL = `ws://${window.location.host}/ws`;
+    const WS_URL = `ws://${window.location.host}/ws`;
     // Update connection status UI
     function updateStatus(connected) {
       const indicator = document.getElementById('status-indicator');
@@ -229,20 +213,18 @@ const WS_URL = `ws://${window.location.host}/ws`;
       ws.send(JSON.stringify({ message }));
       input.value = '';
     }
-    // Auto-connect and focus input on page load
+
+    // Auto-connect on page load
     window.addEventListener('load', () => {
       connectWebSocket();
-      const input = document.getElementById('user-input');
-      input.focus();
     });
-    // Reconnect and focus input on window focus if disconnected
+
+    // Reconnect on window focus if disconnected
     window.addEventListener('focus', () => {
       if (!ws || ws.readyState === WebSocket.CLOSED) {
         connectWebSocket();
       }
-      const input = document.getElementById('user-input');
-      input.focus();
     });
-</script>
+  </script>
 </body>
 </html>
