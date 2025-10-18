@@ -98,7 +98,7 @@ else
     log "No requirements.txt found, using AMI dependencies"
 fi
 # ==========================================
-# STEP 6: Stop Old Application Process
+# STEP 6: Stop Old Application  Process
 # ==========================================
 # Why: We need to restart the app with new code
 # Kill old process gracefully
