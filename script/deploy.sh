@@ -153,8 +153,11 @@ log "Starting uvicorn server"
 nohup "$VENV_DIR/bin/python" -m uvicorn app:app \
     --host 0.0.0.0 \
     --port 80 \
-    --log-level info \
+    --log-level debug \
     > /var/log/fastapi.log 2>&1 &
+
+
+
 
 APP_PID=$!
 log "Application started with PID: $APP_PID"
@@ -171,7 +174,7 @@ if pgrep -f "uvicorn app:app" > /dev/null; then
     
     set +e  # Don't exit if curl fails
     
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ 2>/dev/null || echo "000")
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80/ 2>/dev/null || echo "000")
     
     if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
         log "✓ Application responding to HTTP requests (HTTP $HTTP_CODE)"
