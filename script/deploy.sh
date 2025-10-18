@@ -6,7 +6,7 @@
 set -u  # Exit on undefined variables
 
 # ==========================================
-# CONFIGURATION
+# CONFIGURATION 
 # ==========================================
 APP_DIR="/home/ec2-user/fastapi-app"
 LOG_FILE="/var/log/fastapi-deploy.log"
