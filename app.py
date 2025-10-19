@@ -19,7 +19,6 @@ async def process_message(user_message: str, websocket):
     await websocket.send_json({"type": "end"})
 
 
-# 👇 REPLACE this entire function
 async def _openai_streaming_response(user_message: str, websocket):
     """
     Enhanced version with tool calling
