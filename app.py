@@ -1,35 +1,55 @@
+# ai_handler.py
+import asyncio
+import os
+import json
+import subprocess
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
+
+load_dotenv()
+client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
+async def process_message(user_message: str, websocket):
+    """
+    Your existing function - NO CHANGES needed here!
+    """
+    await websocket.send_json({"type": "start"})
+    await _openai_streaming_response(user_message, websocket)
+    await websocket.send_json({"type": "end"})
+
+
+# 👇 REPLACE this entire function
 async def _openai_streaming_response(user_message: str, websocket):
     """
-    Enhanced with tool calling support
+    Enhanced version with tool calling
 
-    Tool calling flow:
-    1. AI decides to use a tool (e.g., "create_container")
-    2. We execute the tool with provided parameters
-    3. Send results back to AI
-    4. AI formulates final response to user
+    What changed:
+    - Added 'tools' parameter to API call
+    - Handle tool_calls in streaming response
+    - Execute tools when AI requests them
+    - Send results back to AI for final answer
     """
     try:
-        # Define available tools
+        # STEP 1: Define available tools
+        # Why: Tell AI what actions it can perform
         tools = [
             {
                 "type": "function",
                 "function": {
                     "name": "create_container",
-                    "description": "Create a new Docker container with specified configuration",
+                    "description": "Create a new Docker container",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Container name (e.g., 'my-app')",
-                            },
+                            "name": {"type": "string", "description": "Container name"},
                             "image": {
                                 "type": "string",
-                                "description": "Docker image with tag (e.g., 'nginx:latest')",
+                                "description": "Docker image (e.g., 'nginx:latest')",
                             },
                             "max_lines": {
                                 "type": "integer",
-                                "description": "Maximum log lines to capture",
+                                "description": "Log lines to capture",
                                 "default": 160,
                             },
                         },
@@ -39,6 +59,7 @@ async def _openai_streaming_response(user_message: str, websocket):
             }
         ]
 
+        # STEP 2: Initial conversation with AI
         messages = [
             {
                 "role": "system",
@@ -47,38 +68,40 @@ async def _openai_streaming_response(user_message: str, websocket):
             {"role": "user", "content": user_message},
         ]
 
-        # First call - AI may request tool use
+        # STEP 3: First API call - AI decides if it needs tools
         stream = await client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
-            tools=tools,  # Tell AI about available tools
+            tools=tools,  # 👈 This enables tool calling
             stream=True,
             temperature=0.7,
         )
 
-        tool_calls = []
+        # STEP 4: Collect streaming response
+        tool_calls = []  # Will store tool requests if any
         current_tool_call = None
+        response_content = ""
 
         async for chunk in stream:
             delta = chunk.choices[0].delta
 
-            # Handle regular text response
+            # Stream regular text to user
             if delta.content:
+                response_content += delta.content
                 await websocket.send_json({"type": "token", "content": delta.content})
 
-            # Handle tool call request
+            # AI wants to use a tool!
             if delta.tool_calls:
-                # AI wants to use a tool!
                 for tc_delta in delta.tool_calls:
+                    # Initialize new tool call
                     if tc_delta.index is not None:
-                        # Start new tool call
-                        if len(tool_calls) <= tc_delta.index:
+                        while len(tool_calls) <= tc_delta.index:
                             tool_calls.append(
                                 {"id": "", "function": {"name": "", "arguments": ""}}
                             )
                         current_tool_call = tool_calls[tc_delta.index]
 
-                    # Accumulate tool call data
+                    # Accumulate tool call data (comes in chunks like text)
                     if tc_delta.id:
                         current_tool_call["id"] = tc_delta.id
                     if tc_delta.function.name:
@@ -88,41 +111,46 @@ async def _openai_streaming_response(user_message: str, websocket):
                             tc_delta.function.arguments
                         )
 
-        # Execute tool calls if any
+        # STEP 5: Execute tools if AI requested them
         if tool_calls:
-            await websocket.send_json(
-                {"type": "tool_start", "tool": tool_calls[0]["function"]["name"]}
-            )
+            for tool_call in tool_calls:
+                tool_name = tool_call["function"]["name"]
 
-            # Execute the tool
-            import json
+                # Notify user we're using a tool
+                await websocket.send_json({"type": "tool_start", "tool": tool_name})
 
-            args = json.loads(tool_calls[0]["function"]["arguments"])
-            result = await execute_tool(tool_calls[0]["function"]["name"], args)
+                # Parse arguments and execute
+                args = json.loads(tool_call["function"]["arguments"])
+                result = await execute_tool(tool_name, args)
 
-            await websocket.send_json({"type": "tool_result", "content": result})
+                # Show result to user
+                await websocket.send_json({"type": "tool_result", "content": result})
 
-            # Send tool result back to AI for final response
-            messages.append(
-                {
-                    "role": "assistant",
-                    "tool_calls": [
-                        {
-                            "id": tool_calls[0]["id"],
-                            "type": "function",
-                            "function": {
-                                "name": tool_calls[0]["function"]["name"],
-                                "arguments": tool_calls[0]["function"]["arguments"],
-                            },
-                        }
-                    ],
-                }
-            )
-            messages.append(
-                {"role": "tool", "tool_call_id": tool_calls[0]["id"], "content": result}
-            )
+                # STEP 6: Update conversation history
+                # Add AI's tool request
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "id": tool_call["id"],
+                                "type": "function",
+                                "function": {
+                                    "name": tool_name,
+                                    "arguments": tool_call["function"]["arguments"],
+                                },
+                            }
+                        ],
+                    }
+                )
 
-            # Get AI's final response after seeing tool results
+                # Add tool result
+                messages.append(
+                    {"role": "tool", "tool_call_id": tool_call["id"], "content": result}
+                )
+
+            # STEP 7: Ask AI to formulate final answer
+            # Now AI has tool results and can give a proper response
             final_stream = await client.chat.completions.create(
                 model="gpt-4o-mini", messages=messages, stream=True
             )
@@ -134,19 +162,16 @@ async def _openai_streaming_response(user_message: str, websocket):
                     )
 
     except Exception as e:
-        await websocket.send_json(
-            {"type": "error", "message": f"AI service error: {str(e)}"}
-        )
+        await websocket.send_json({"type": "error", "message": f"Error: {str(e)}"})
+        print(f"OpenAI API Error: {e}")
 
 
+# 👇 ADD these two new functions at the end of the file
 async def execute_tool(tool_name: str, args: dict) -> str:
     """
-    Execute the requested tool
+    Router function - calls the right tool based on name
 
-    Why separate function:
-    - Keeps tool logic isolated
-    - Easy to add more tools later
-    - Can add error handling per tool
+    Why separate: Easy to add more tools later
     """
     if tool_name == "create_container":
         return await create_container(
@@ -158,37 +183,36 @@ async def execute_tool(tool_name: str, args: dict) -> str:
 
 async def create_container(name: str, image: str, max_lines: int = 160) -> str:
     """
-    Create Docker container and capture logs
+    Actually create the Docker container
 
-    Args:
-        name: Container name
-        image: Docker image with tag (e.g., 'nginx:latest')
-        max_lines: Maximum log lines to capture
+    What it does:
+    1. Runs 'docker run -d --name X image' command
+    2. Waits 2 seconds for container to start
+    3. Captures last N lines of logs
+    4. Returns formatted result
 
-    Returns:
-        String with container info and logs
+    Why async: Don't block other users while waiting for Docker
     """
-    import subprocess
-
     try:
-        # Create and start container
+        # Create container (detached mode)
         subprocess.run(
             ["docker", "run", "-d", "--name", name, image],
             check=True,
             capture_output=True,
+            text=True,
         )
 
-        # Wait a moment for logs
+        # Give container time to start and generate logs
         await asyncio.sleep(2)
 
-        # Get logs (last N lines)
+        # Fetch logs
         logs = subprocess.run(
             ["docker", "logs", "--tail", str(max_lines), name],
             capture_output=True,
             text=True,
         )
 
-        return f"✅ Container '{name}' created from {image}\n\nLogs:\n{logs.stdout}"
+        return f"✅ Container '{name}' created from {image}\n\nLogs (last {max_lines} lines):\n{logs.stdout}"
 
     except subprocess.CalledProcessError as e:
-        return f"❌ Error: {e.stderr.decode()}"
+        return f"❌ Failed to create container: {e.stderr}"
