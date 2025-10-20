@@ -1,16 +1,160 @@
+version: '3.8'
+
+################################################################################
+# Docker Compose Template for User Containers
+# 
+# Purpose: Define container configurations that can be customized per user
+# 
+# How to use this template:
+#   1. Copy this file: cp docker-compose.template.yml docker-compose.bob.yml
+#   2. Replace {{CONTAINER_NAME}}, {{TAGS}}, {{PRIVATE_VOLUME}} placeholders
+#   3. Run: docker-compose -f docker-compose.bob.yml up -d
+#
+# Or use the spin_up_container.sh script which does this automatically
+################################################################################
+
 services:
-  bash_tool:
-    build: .  # Build from Dockerfile
-    container_name: my_tool_container
+  # Service name - will be used as the container name
+  {{CONTAINER_NAME}}:
+    
+    # Build configuration
+    # Why 'build: .'? Uses Dockerfile in current directory
+    build: .
+    
+    # Alternatively, use pre-built image:
+    # image: custom_user_base:latest
+    
+    # Container name - what you see in 'docker ps'
+    # Why explicit name? Makes it easy to reference in commands
+    container_name: "{{CONTAINER_NAME}}"
+    
+    # Hostname inside the container
+    # Why set hostname? Useful for identifying container in logs/processes
+    hostname: "{{CONTAINER_NAME}}"
+    
+    # Working directory when you exec into container
+    # Why /data_private? This is where user-specific files live
     working_dir: /data_private
     
+    # Volume mounts
+    # Format: volume_name:container_path
     volumes:
+      # Private volume - unique to this container
+      # Why named volume? Data persists even if container is deleted
+      - "{{PRIVATE_VOLUME}}:/data_private"
+      
+      # Shared volume - accessible by all containers
+      # Why shared? For registry and inter-container communication
       - shared_data:/data_shared
-      - /data_private
     
+    # Restart policy
+    # Why unless-stopped? Container auto-restarts on crashes/reboots
+    # but respects manual stops
     restart: unless-stopped
-    network_mode: bridge
+    
+    # Environment variables (optional)
+    environment:
+      # Custom variables you can use
+      - CONTAINER_NAME={{CONTAINER_NAME}}
+      - TAGS={{TAGS}}
+      # Add more as needed:
+      # - PYTHON_VERSION=3.11
+      # - NODE_ENV=production
+    
+    # Labels for metadata
+    # Why labels? Easy filtering: docker ps --filter label=user=bob
+    labels:
+      - "user.name={{CONTAINER_NAME}}"
+      - "user.tags={{TAGS}}"
+      - "managed_by=spin_up_script"
+    
+    # Resource limits (optional but recommended)
+    # Why limits? Prevent one container from hogging all resources
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'      # Max 1 CPU core
+          memory: 512M      # Max 512 MB RAM
+        reservations:
+          cpus: '0.25'     # Guaranteed 0.25 CPU
+          memory: 128M      # Guaranteed 128 MB RAM
+    
+    # Network configuration
+    # Why custom network? Enables DNS resolution between containers
+    networks:
+      - user_network
+    
+    # Port mapping (if needed)
+    # Format: host_port:container_port
+    # Uncomment if your container needs to expose services:
+    # ports:
+    #   - "8080:8080"  # Web server
+    #   - "5432:5432"  # Database
+    
+    # Command override (optional)
+    # Default is 'sleep infinity' to keep container alive
+    # Uncomment to run a different command:
+    # command: ["python", "app.py"]
+    
+    # Health check (optional but recommended)
+    # Why healthcheck? Docker can monitor if container is functioning
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "sleep infinity"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
+################################################################################
+# Networks
+# Why custom network? Enables container-to-container communication by name
+################################################################################
+networks:
+  user_network:
+    # Create network if it doesn't exist, or use existing one
+    # Why external: true? Network created by spin_up script, shared by all
+    external: true
+    name: user_shared_network
+
+################################################################################
+# Volumes
+# Why declare volumes here? Makes them explicit and manageable
+################################################################################
 volumes:
+  # Private volume - unique per container
+  {{PRIVATE_VOLUME}}:
+    # External means Docker won't try to create it
+    # We create it in the spin_up script instead
+    external: true
+  
+  # Shared volume - same across all containers
   shared_data:
-    driver: local
+    external: true
+
+################################################################################
+# Additional Configuration Examples
+################################################################################
+
+# Example: Container that needs internet access disabled
+#   services:
+#     isolated_container:
+#       network_mode: none  # No network access at all
+
+# Example: Container with custom DNS
+#   services:
+#     custom_dns_container:
+#       dns:
+#         - 8.8.8.8
+#         - 1.1.1.1
+
+# Example: Container with specific user
+#   services:
+#     specific_user_container:
+#       user: "1000:1000"  # Run as UID 1000
+
+# Example: Container with capabilities
+#   services:
+#     privileged_container:
+#       cap_add:
+#         - NET_ADMIN  # For network operations
+#         - SYS_ADMIN  # For system operations
