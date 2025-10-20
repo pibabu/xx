@@ -5,6 +5,7 @@ import json
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from services.bash_tool import execute_bash_command
+from services.conversation_manager import ConversationManager
 
 load_dotenv()
 
@@ -52,6 +53,7 @@ TOOLS = [
 ]
 
 
+
 def build_messages(user_message: str, assistant_message=None, tool_result=None, tool_call_id=None):
     """
     Build messages array for OpenAI API calls.
@@ -78,12 +80,26 @@ def build_messages(user_message: str, assistant_message=None, tool_result=None, 
     return messages
 
 
-async def process_message(user_message: str, websocket):
-    """Main entry for handling user message + LLM streaming"""
-    await websocket.send_json({"type": "start"})
-    await _handle_llm_interaction(user_message, websocket)
-    await websocket.send_json({"type": "end"})
+conversation_manager = ConversationManager(max_messages=50)
 
+async def process_message(user_message: str, websocket, session_id: str):
+    """
+    Main entry point - now takes session_id to track conversation.
+    
+    Args:
+        user_message: What the user typed
+        websocket: Connection to send responses
+        session_id: Unique ID for this conversation (WebSocket connection)
+    """
+    # Add user message to history
+    conversation_manager.add_user_message(session_id, user_message)
+    
+    await websocket.send_json({"type": "start"})
+    await _handle_llm_interaction(session_id, websocket)
+    await websocket.send_json({"type": "end"})
+    
+
+# Update _handle_llm_interaction to use session history and store responses -fehlt noch
 
 async def _handle_llm_interaction(user_message: str, websocket):
     """
