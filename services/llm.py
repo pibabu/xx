@@ -18,7 +18,7 @@ if not api_key or not api_key.startswith("sk-"):
 
 client = AsyncOpenAI(api_key=api_key)
 
-# Configuration constants
+# Configuration constants 
 MODEL = "gpt-4o-mini"
 
 SYSTEM_MESSAGE = {
