@@ -1,0 +1,1 @@
+share your resources and harvest the ripe fruits together

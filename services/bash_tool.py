@@ -1,7 +1,7 @@
 # mehr error handling und regex für andere tool calls, doppelte commands wie ls und cat in einem!
 import asyncio
 
-CONTAINER_NAME = "my_tool_container" 
+CONTAINER_NAME = "my_tool_container" ####
 
 async def execute_bash_command(command: str) -> str:
     """
