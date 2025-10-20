@@ -1,7 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from pathlib import Path
-from services.llm import process_message
+from services.llm import process_message, cleanup_conversation
 
 app = FastAPI()
 
@@ -27,6 +27,9 @@ async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket endpoint for real-time chat
     Delegates AI processing to service layer
+    
+    Why WebSocket: Enables real-time bidirectional communication
+    Why try/except/finally: Ensures cleanup even if errors occur
     """
     await websocket.accept()
     print("✓ Client connected")
@@ -42,14 +45,20 @@ async def websocket_endpoint(websocket: WebSocket):
 
             print(f"📩 Received: {user_message}")
 
-            # Process message through AI service (streaming)
+            # llm backend
             await process_message(user_message, websocket)
 
     except WebSocketDisconnect:
         print("✗ Client disconnected")
     except Exception as e:
         print(f"❌ Error: {e}")
-        await websocket.close()
+    finally:
+        # Always cleanup conversation history
+        cleanup_conversation(websocket)
+        try:
+            await websocket.close()
+        except:
+            pass  # Already closed
 
 
 @app.get("/health")
