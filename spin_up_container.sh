@@ -153,14 +153,14 @@ fi
 fi
 
 echo "Starting container: $CONTAINER_NAME"
-docker run -d 
---name "$CONTAINER_NAME" \
---restart unless-stopped \
--v "$PRIVATE_VOLUME:/data_private" \
--v "$SHARED_VOLUME:/data_shared" \
---hostname "$CONTAINER_NAME" \
-"$DEFAULT_IMAGE" tail -f /dev/null
-
+docker run -d \
+  --name "$CONTAINER_NAME" \
+  --restart unless-stopped \
+  -v "$PRIVATE_VOLUME:/data_private" \
+  -v "$SHARED_VOLUME:/data_shared" \
+  --hostname "$CONTAINER_NAME" \
+  "$DEFAULT_IMAGE" \
+  tail -f /dev/null
 echo "Container started successfully"
 
 ################################################################################
