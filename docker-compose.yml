@@ -18,12 +18,8 @@ services:
   {{CONTAINER_NAME}}:
     
     # Build configuration
-    # Why 'build: .'? Uses Dockerfile in current directory
     build: .
-    
-    # Alternatively, use pre-built image:
-    # image: custom_user_base:latest
-    
+
     # Container name - what you see in 'docker ps'
     # Why explicit name? Makes it easy to reference in commands
     container_name: "{{CONTAINER_NAME}}"
@@ -47,20 +43,14 @@ services:
       # Why shared? For registry and inter-container communication
       - shared_data:/data_shared
     
-    # Restart policy
-    # Why unless-stopped? Container auto-restarts on crashes/reboots
-    # but respects manual stops
-    restart: unless-stopped
-    
+    restart: always
+
     # Environment variables (optional)
     environment:
       # Custom variables you can use
       - CONTAINER_NAME={{CONTAINER_NAME}}
       - TAGS={{TAGS}}
-      # Add more as needed:
-      # - PYTHON_VERSION=3.11
-      # - NODE_ENV=production
-    
+
     # Labels for metadata
     # Why labels? Easy filtering: docker ps --filter label=user=bob
     labels:
