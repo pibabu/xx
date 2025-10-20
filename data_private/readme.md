@@ -1,0 +1,1 @@
+respektiere berechtigungen: immer ls -la s

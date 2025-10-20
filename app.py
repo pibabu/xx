@@ -1,7 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from pathlib import Path
-from services.llm import process_message, cleanup_conversation
+from services.llm import process_message
 
 app = FastAPI()
 
@@ -45,7 +45,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
             print(f"📩 Received: {user_message}")
 
-            # llm backend
+            # Process message through AI service (streaming)
             await process_message(user_message, websocket)
 
     except WebSocketDisconnect:
@@ -54,6 +54,7 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"❌ Error: {e}")
     finally:
         # Always cleanup conversation history
+
         cleanup_conversation(websocket)
         try:
             await websocket.close()
