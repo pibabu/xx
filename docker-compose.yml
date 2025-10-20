@@ -1,0 +1,16 @@
+services:
+  bash_tool:
+    build: .  # Build from Dockerfile
+    container_name: my_tool_container
+    working_dir: /data_private
+    
+    volumes:
+      - shared_data:/data_shared
+      - /data_private
+    
+    restart: unless-stopped
+    network_mode: bridge
+
+volumes:
+  shared_data:
+    driver: local
