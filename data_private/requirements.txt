@@ -1,8 +1,10 @@
--always read requirements.txt-
-add llm_behavior_and_style 
-add 
+varaibles -> readme-files
+llm_behavior_and_style
+ 
 
 
-Settings:
+Settings for subprocesses:
 
 git:
+challenge:
+shorten-messages: tell user what gets deleted
