@@ -24,10 +24,7 @@ async def serve_frontend():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """
-    WebSocket endpoint for real-time chat
-    Delegates AI processing to service layer
-    """
+   
     await websocket.accept()
     print("✓ Client connected")
 
@@ -49,7 +46,14 @@ async def websocket_endpoint(websocket: WebSocket):
         print("✗ Client disconnected")
     except Exception as e:
         print(f"❌ Error: {e}")
-        await websocket.close()
+    finally:
+        # Always cleanup conversation history
+
+        cleanup_conversation(websocket) #not defined
+        try:
+            await websocket.close()
+        except:
+            pass  # Already closed
 
 
 @app.get("/health")

@@ -1,0 +1,6 @@
+variable:  + dir_structure_lt-memory
+
+bash:  git commit
++ update lt-memory
+
+update current conversation-histo ####

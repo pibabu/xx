@@ -110,45 +110,53 @@
 
     // Append message to chat history
     function appendMessage(role, content, messageId = null) {
-      const chatHistory = document.getElementById('chat-history');
-      
-      if (messageId && document.getElementById(messageId)) {
-        // Update existing message
-        const existingMsg = document.getElementById(messageId);
-        existingMsg.querySelector('.message-content').textContent = content;
-      } else {
-        // Create new message
-        const messageDiv = document.createElement('div');
-        messageDiv.id = messageId || `msg-${Date.now()}`;
-        
-        if (role === 'user') {
-          messageDiv.innerHTML = `
-            <div class="flex items-start space-x-2">
-              <span class="text-terminal-prompt">You:</span>
-              <span class="message-content text-terminal-input">${escapeHtml(content)}</span>
-            </div>
-          `;
-        } else if (role === 'ai') {
-          messageDiv.innerHTML = `
-            <div class="flex items-start space-x-2">
-              <span class="text-terminal-prompt">AI:</span>
-              <span class="message-content text-gray-300">${escapeHtml(content)}</span>
-            </div>
-          `;
-        } else {
-          messageDiv.innerHTML = `
-            <div class="text-gray-500 text-sm">
-              <span class="text-terminal-prompt">System:</span>
-              <span class="message-content">${escapeHtml(content)}</span>
-            </div>
-          `;
-        }
-        
-        chatHistory.appendChild(messageDiv);
-      }
-      
-      chatHistory.scrollTop = chatHistory.scrollHeight;
+  const chatHistory = document.getElementById('chat-history');
+  
+  if (messageId && document.getElementById(messageId)) {
+    // Update existing message
+    const existingMsg = document.getElementById(messageId);
+    existingMsg.querySelector('.message-content').textContent = content;
+  } else {
+    // Create new message
+    const messageDiv = document.createElement('div');
+    messageDiv.id = messageId || `msg-${Date.now()}`;
+    
+    if (role === 'user') {
+      messageDiv.innerHTML = `
+        <div class="flex items-start space-x-2">
+          <span class="text-terminal-prompt">You:</span>
+          <span class="message-content text-terminal-input">${escapeHtml(content)}</span>
+        </div>
+      `;
+    } else if (role === 'ai') {
+      messageDiv.innerHTML = `
+        <div class="flex items-start space-x-2">
+          <span class="text-terminal-prompt">AI:</span>
+          <span class="message-content text-gray-300">${escapeHtml(content)}</span>
+        </div>
+      `;
+    } else if (role === 'tool') {
+      messageDiv.innerHTML = `
+        <div class="flex items-start space-x-2">
+          <span class="text-yellow-500">🔧</span>
+          <span class="message-content text-yellow-400">${escapeHtml(content)}</span>
+        </div>
+      `;
+    } else {
+
+      messageDiv.innerHTML = `
+        <div class="text-gray-500 text-sm">
+          <span class="text-terminal-prompt">System:</span>
+          <span class="message-content">${escapeHtml(content)}</span>
+        </div>
+      `;
     }
+    
+    chatHistory.appendChild(messageDiv);
+  }
+  
+  chatHistory.scrollTop = chatHistory.scrollHeight;
+}
 
     // Escape HTML to prevent XSS
     function escapeHtml(text) {
@@ -165,19 +173,7 @@
 
       appendMessage('system', 'Connecting to server...');
       
-      // Show progress messages while waiting
-      const timeout1 = setTimeout(() => {
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-          appendMessage('system', 'Dauert noch... Docker fährt hoch...');
-        }
-      }, 2000);
-      
-      const timeout2 = setTimeout(() => {
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-          appendMessage('system', 'Hol dir noch nen Kaffee...');
-        }
-      }, 7000);
-      
+    
       ws = new WebSocket(WS_URL);
 
       ws.onopen = () => {
@@ -187,35 +183,35 @@
         updateStatus(true);
       };
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          if (data.type === 'start') {
-            // AI is starting to respond
-            currentAiMessage = `ai-${Date.now()}`;
-            appendMessage('ai', '', currentAiMessage);
-          } else if (data.type === 'token' && currentAiMessage) {
-            // Stream tokens as they arrive
-            const msgElement = document.getElementById(currentAiMessage);
-            if (msgElement) {
-              const contentSpan = msgElement.querySelector('.message-content');
-              contentSpan.textContent += data.content;
-            }
-          } else if (data.type === 'end') {
-            // Response complete
-            currentAiMessage = null;
-          } else if (data.type === 'error') {
-            appendMessage('system', `Error: ${data.message}`);
-          } else {
-            // Fallback for simple response format
-            appendMessage('ai', data.response || data.content || event.data);
-          }
-        } catch (e) {
-          // If not JSON, treat as plain text
-          appendMessage('ai', event.data);
-        }
-      };
+      ws.onmessage = function(event) {
+  const data = JSON.parse(event.data);
+  
+   if (data.type === 'start') {
+      // Start new AI message
+      currentMessageId = `msg-${Date.now()}`;
+      appendMessage('ai', '', currentMessageId);
+    } 
+    else if (data.type === 'token') {
+      // Append token to existing message
+      const existingMsg = document.getElementById(currentMessageId);
+      const contentSpan = existingMsg.querySelector('.message-content');
+      contentSpan.textContent += data.content;
+    }
+    //else if (data.type === 'tool_start') {
+      // ####
+     // appendMessage('tool', `Using tool: ${data.tool}...`);
+   //}
+   //else if (data.type === 'tool_result') {
+      // ####
+     // appendMessage('tool', data.content);
+   // }
+    else if (data.type === 'end') {
+     currentMessageId = null;
+    }
+    else if (data.type === 'error') {
+      appendMessage('system', `Error: ${data.message}`);
+    }
+  };
 
       ws.onerror = (error) => {
         appendMessage('system', 'Connection error occurred');
