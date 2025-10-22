@@ -24,13 +24,7 @@ async def serve_frontend():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """
-    WebSocket endpoint for real-time chat
-    Delegates AI processing to service layer
-    
-    Why WebSocket: Enables real-time bidirectional communication
-    Why try/except/finally: Ensures cleanup even if errors occur
-    """
+   
     await websocket.accept()
     print("✓ Client connected")
 
@@ -55,7 +49,7 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         # Always cleanup conversation history
 
-        cleanup_conversation(websocket)
+        cleanup_conversation(websocket) #not defined
         try:
             await websocket.close()
         except:

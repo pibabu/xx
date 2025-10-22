@@ -45,21 +45,15 @@ services:
     
     restart: always
 
-    # Environment variables (optional)
     environment:
-      # Custom variables you can use
       - CONTAINER_NAME={{CONTAINER_NAME}}
       - TAGS={{TAGS}}
 
-    # Labels for metadata
-    # Why labels? Easy filtering: docker ps --filter label=user=bob
     labels:
       - "user.name={{CONTAINER_NAME}}"
       - "user.tags={{TAGS}}"
       - "managed_by=spin_up_script"
     
-    # Resource limits (optional but recommended)
-    # Why limits? Prevent one container from hogging all resources
     deploy:
       resources:
         limits:
@@ -69,8 +63,6 @@ services:
           cpus: '0.25'     # Guaranteed 0.25 CPU
           memory: 128M      # Guaranteed 128 MB RAM
     
-    # Network configuration
-    # Why custom network? Enables DNS resolution between containers
     networks:
       - user_network
     
