@@ -1,45 +1,16 @@
-
-################################################################################
-# Docker Compose Template for User Containers
-# 
-# Purpose: Define container configurations that can be customized per user
-# 
-# How to use this template:
-#   1. Copy this file: cp docker-compose.template.yml docker-compose.bob.yml
-#   2. Replace {{CONTAINER_NAME}}, {{TAGS}}, {{PRIVATE_VOLUME}} placeholders
-#   3. Run: docker-compose -f docker-compose.bob.yml up -d
-#
-# Or use the spin_up_container.sh script which does this automatically
-################################################################################
-
 services:
   # Service name - will be used as the container name
   {{CONTAINER_NAME}}:
     
-    # Build configuration
     build: .
-
-    # Container name - what you see in 'docker ps'
-    # Why explicit name? Makes it easy to reference in commands
     container_name: "{{CONTAINER_NAME}}"
     
-    # Hostname inside the container
-    # Why set hostname? Useful for identifying container in logs/processes
     hostname: "{{CONTAINER_NAME}}"
     
-    # Working directory when you exec into container
-    # Why /data_private? This is where user-specific files live
     working_dir: /data_private
     
-    # Volume mounts
-    # Format: volume_name:container_path
     volumes:
-      # Private volume - unique to this container
-      # Why named volume? Data persists even if container is deleted
       - "{{PRIVATE_VOLUME}}:/data_private"
-      
-      # Shared volume - accessible by all containers
-      # Why shared? For registry and inter-container communication
       - shared_data:/data_shared
     
     restart: always
