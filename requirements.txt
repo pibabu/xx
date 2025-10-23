@@ -1,34 +1,12 @@
-# FastAPI Framework
-# Why: Web framework for building APIs with automatic OpenAPI docs
 fastapi==0.109.0
-
-# ASGI Server
-# Why: Production-ready server to run FastAPI (handles async, WebSockets)
 uvicorn[standard]==0.27.0
-
-# WebSocket Support
-# Why: For real-time bidirectional communication (already in uvicorn[standard])
 websockets==12.0
-
-# OpenAI SDK
-# Why: To interact with OpenAI API for LLM functionality in services/llm.py
 openai==1.10.0
-
-# HTTP Client
-# Why: For making async HTTP requests if needed
 httpx==0.26.0
-
-# Environment Variables
-# Why: Load .env file with secrets (OPENAI_API_KEY, etc.)
 python-dotenv==1.0.0
-
-# Pydantic
-# Why: Data validation (FastAPI uses this, but good to specify version)
 pydantic==2.5.3
 
-# Additional utilities you might need:
 # python-multipart==0.0.6  # For form data parsing
-# jinja2==3.1.3  # If you serve HTML templates
-
+# jinja2==3.1.3  # !!!
 
 docker==7.0.0

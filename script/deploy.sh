@@ -9,7 +9,7 @@ set -u  # Exit on undefined variables
 # CONFIGURATION 
 # ==========================================
 APP_DIR="/home/ec2-user/fastapi-app"
-LOG_FILE="/var/log/fastapi-deploy.log"
+LOG_FILE="/var/log/fastapi-deploy.log" ##put into data_private?
 APP_USER="ec2-user"
 PYTHON_BIN="/usr/bin/python3"
 VENV_DIR="$APP_DIR/venv"
@@ -69,7 +69,7 @@ log "Files copied successfully"
 # STEP 3: Setup Python Virtual Environment
 # ==========================================
 # Your AMI already created this via user data
-# This just ensures it exists if AMI didn't run properly
+# This just ensures it exists if AMI didn't run properly ----> deswgen wird codepipeline openaiapi key nicht weitergegeben?
 log "Step 3: Setting up Python virtual environment"
 
 cd "$APP_DIR"
