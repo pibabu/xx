@@ -27,7 +27,7 @@ async def process_message(cm, websocket):
     
     # Save assistant's final response to conversation history
     if assistant_response:
-        cm.add_message("assistant", assistant_response)
+        cm.add_assistant_message(assistant_response)
     
     await websocket.send_json({"type": "end"})
 
@@ -126,7 +126,6 @@ async def _stream_openai_response(cm: ConversationManager, websocket, depth: int
                     
                     # RECURSE: Send updated conversation back to LLM
                     # Now messages = [..., tool_call, tool_result]
-                    updated_messages = cm.get_messages()
                     return await _stream_openai_response(
                         cm, websocket, depth + 1
                     )

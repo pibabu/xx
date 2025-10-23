@@ -16,7 +16,6 @@ class ConversationManager:
         self.stateful = stateful
         self.messages: List[Dict] = []
         self.system_prompt: Optional[str] = None
-        self._tool_call_counter = 0  # For unique tool call IDs , get rid
         
     def _exec(self, command: str) -> str:
         
@@ -53,17 +52,14 @@ class ConversationManager:
             "content": content
         })
     
-    def add_tool_call(self, tool_name: str, arguments: Dict, result: str):
-
-        call_id = f"call_{self._tool_call_counter}"
-        self._tool_call_counter += 1
+    def add_tool_call(self, tool_name: str, arguments: Dict, tool_call_id: str):
         
-        # First: Add the assistant's tool call message
+        # Add the assistant's tool call message
         self.messages.append({
             "role": "assistant",
-            "content": None,  # Tool calls have no text content
+            "content": None,
             "tool_calls": [{
-                "id": call_id,
+                "id": tool_call_id,
                 "type": "function",
                 "function": {
                     "name": tool_name,
@@ -71,11 +67,12 @@ class ConversationManager:
                 }
             }]
         })
-        
-        # Second: Add the tool's response message
+
+    def add_tool_result(self, tool_call_id: str, result: str):
+        # Add the tool's response message
         self.messages.append({
             "role": "tool",
-            "tool_call_id": call_id,
+            "tool_call_id": tool_call_id,
             "content": result
         })
     
@@ -124,7 +121,6 @@ class ConversationManager:
         self._exec("bash /data/scripts/start_new_conversation.sh") ##???
         self.messages = []
         self.system_prompt = None  # Will reload on next get_messages()
-        self._tool_call_counter = 0
 
 
 # Tool schema for OpenAI API

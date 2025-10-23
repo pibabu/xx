@@ -38,11 +38,8 @@ async def websocket_endpoint(websocket: WebSocket):
             # Add user message using correct method
             cm.add_user_message(user_message)
             
-            # Get messages with system prompt included
-            messages = cm.get_messages()
-
             # Process message with LLM (streams response via websocket)
-            await process_message(messages, websocket)
+            await process_message(cm, websocket)
             
             # Note: process_message handles streaming,
             # actual response tracking would need to be added
