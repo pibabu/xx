@@ -1,33 +1,23 @@
 #!/bin/bash
 # Deployment script for FastAPI WebSocket application
 # Runs on EC2 via AWS CodePipeline + SSM agent
+# With Nginx reverse proxy for ey-ios.com
 
-#set -e  # Exit on error (we'll disable for non-critical commands)
 set -u  # Exit on undefined variables
 
 # ==========================================
 # CONFIGURATION 
 # ==========================================
 APP_DIR="/home/ec2-user/fastapi-app"
-LOG_FILE="/var/log/fastapi-deploy.log" ##put into data_private?
+LOG_FILE="/var/log/fastapi-deploy.log"
 APP_USER="ec2-user"
 PYTHON_BIN="/usr/bin/python3"
 VENV_DIR="$APP_DIR/venv"
+APP_PORT=8000 
 
-# Create .env file with environment variables
-echo "Creating .env file..." | tee -a $LOG_FILE
-cat > $APP_DIR/.env << EOF
-OPENAI_API_KEY=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
-EOF
-####  ehhhh
-
-
-# Secure the .env file (only owner can read/write)
-chmod 600 $APP_DIR/.env
-chown $APP_USER:$APP_USER $APP_DIR/.env
-
-echo ".env file created successfully" | tee -a $LOG_FILE
-
+# ==========================================
+# LOGGING FUNCTION
+# ==========================================
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
@@ -52,8 +42,6 @@ fi
 # ==========================================
 # STEP 2: Copy New Code
 # ==========================================
-# CodePipeline extracts your GitHub repo to current working directory
-# We need to copy it to our permanent app location
 log "Step 2: Copying application files"
 
 log "Current directory: $(pwd)"
@@ -61,18 +49,56 @@ log "Files in current directory:"
 ls -la
 
 log "Copying files to $APP_DIR"
-rsync -av --exclude='.git' --exclude='venv' ./ "$APP_DIR/"
+rsync -av --exclude='.git' --exclude='venv' --exclude='.env' ./ "$APP_DIR/"
 
 sudo chown -R $APP_USER:$APP_USER "$APP_DIR"
 
 log "Files copied successfully"
 
 # ==========================================
-# STEP 3: Setup Python Virtual Environment
+# STEP 3: Create .env from AWS Systems Manager Parameter Store
 # ==========================================
-# Your AMI already created this via user data
-# This just ensures it exists if AMI didn't run properly ----> deswgen wird codepipeline openaiapi key nicht weitergegeben?
-log "Step 3: Setting up Python virtual environment"
+
+
+
+set +e  # Don't exit if AWS CLI fails
+
+# Try to fetch from Parameter Store
+OPENAI_KEY=$(aws ssm get-parameter --name "/fastapi-app/openai-api-key" --with-decryption --query "Parameter.Value" --output text 2>/dev/null)
+
+if [ -z "$OPENAI_KEY" ] || [ "$OPENAI_KEY" = "None" ]; then
+    log "WARNING: Could not fetch OPENAI_API_KEY from Parameter Store"
+    log "Checking for existing .env file..."
+    
+    if [ ! -f "$APP_DIR/.env" ]; then
+        log "ERROR: No .env file found and Parameter Store unavailable"
+        log "Please create Parameter Store entry: /fastapi-app/openai-api-key"
+        exit 1
+    else
+        log "Using existing .env file"
+    fi
+else
+    log "Creating .env file from Parameter Store..."
+    cat > $APP_DIR/.env << EOF
+OPENAI_API_KEY=$OPENAI_KEY
+APP_PORT=$APP_PORT
+APP_HOST=0.0.0.0
+DOMAIN=ey-ios.com
+EOF
+    
+    # Secure the .env file
+    chmod 600 $APP_DIR/.env
+    chown $APP_USER:$APP_USER $APP_DIR/.env
+    
+    log ".env file created successfully"
+fi
+
+set -e
+
+# ==========================================
+# STEP 4: Setup Python Virtual Environment
+# ==========================================
+log "Step 4: Setting up Python virtual environment"
 
 cd "$APP_DIR"
 
@@ -88,24 +114,23 @@ source "$VENV_DIR/bin/activate"
 log "Virtual environment activated: $(which python)"
 
 # ==========================================
-# STEP 4: Install/Update Dependencies
+# STEP 5: Install/Update Dependencies
 # ==========================================
-# CRITICAL FIX: Removed --no-deps flag
-# --no-deps prevents installing sub-dependencies which breaks packages
-log "Step 4: Checking Python dependencies"
+log "Step 5: Checking Python dependencies"
 
 if [ -f "requirements.txt" ]; then
     log "Found requirements.txt, updating dependencies"
+    pip install --upgrade pip
     pip install --upgrade -r requirements.txt
     log "Dependencies updated successfully"
 else
-    log "No requirements.txt found, using AMI pre-installed packages"
+    log "WARNING: No requirements.txt found"
 fi
 
 # ==========================================
-# STEP 5: Verify Critical Files
+# STEP 6: Verify Critical Files
 # ==========================================
-log "Step 5: Verifying application files"
+log "Step 6: Verifying application files"
 
 if [ ! -f "app.py" ]; then
     log "ERROR: app.py not found in $APP_DIR"
@@ -117,23 +142,21 @@ fi
 log "✓ app.py found"
 
 # ==========================================
-# STEP 6: Stop Old Application Process
+# STEP 7: Stop Old Application Process
 # ==========================================
-# CRITICAL FIX: Disable 'set -e' because pkill returns exit code 1
-# if no process found, which would stop the whole script
-log "Step 6: Stopping old application process"
+log "Step 7: Stopping old application process"
 
-set +e  # Don't exit on error for this section
+set +e
 
 if pgrep -f "uvicorn app:app" > /dev/null; then
     log "Found running application process, stopping it..."
     
-    pkill -f "uvicorn app:app"  # Send SIGTERM (graceful)
+    pkill -f "uvicorn app:app"
     sleep 3
     
     if pgrep -f "uvicorn app:app" > /dev/null; then
         log "Process still running, force killing..."
-        pkill -9 -f "uvicorn app:app"  # Send SIGKILL (force)
+        pkill -9 -f "uvicorn app:app"
         sleep 1
     fi
     
@@ -142,49 +165,46 @@ else
     log "No running process found (this is fine)"
 fi
 
-set -e  # Re-enable exit on error
+set -e
 
 # ==========================================
-# STEP 7: Start New Application
+# STEP 8: Start New Application
 # ==========================================
-log "Step 7: Starting new application"
+log "Step 8: Starting new application"
 
 cd "$APP_DIR"
 
-log "Starting uvicorn server"
+log "Starting uvicorn server on port $APP_PORT"
 nohup "$VENV_DIR/bin/python" -m uvicorn app:app \
     --host 0.0.0.0 \
-    --port 80 \
-    --log-level debug \
+    --port $APP_PORT \
+    --log-level info \
+    --proxy-headers \
+    --forwarded-allow-ips='*' \
     > /var/log/fastapi.log 2>&1 &
-
-
-
 
 APP_PID=$!
 log "Application started with PID: $APP_PID"
 
-sleep 5  # Give app time to start
+sleep 5
 
 # ==========================================
-# STEP 8: Verify Application is Running
+# STEP 9: Verify Application is Running
 # ==========================================
-log "Step 8: Verifying application"
+log "Step 9: Verifying application"
 
 if pgrep -f "uvicorn app:app" > /dev/null; then
     log "✓ Application process is running"
     
-    set +e  # Don't exit if curl fails
+    set +e
     
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80/ 2>/dev/null || echo "000")
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/ 2>/dev/null || echo "000")
     
     if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
         log "✓ Application responding to HTTP requests (HTTP $HTTP_CODE)"
     else
         log "⚠ Application running but may not be ready yet (HTTP $HTTP_CODE)"
         log "Check logs: tail -f /var/log/fastapi.log"
-        log "Last 20 lines of application log:"
-        tail -n 20 /var/log/fastapi.log | tee -a "$LOG_FILE"
     fi
     
     set -e
@@ -197,6 +217,30 @@ else
 fi
 
 # ==========================================
+# STEP 10: Reload Nginx (if needed)
+# ==========================================
+log "Step 10: Checking Nginx configuration"
+
+set +e
+
+if command -v nginx &> /dev/null; then
+    log "Testing Nginx configuration..."
+    sudo nginx -t
+    
+    if [ $? -eq 0 ]; then
+        log "Nginx configuration valid, reloading..."
+        sudo systemctl reload nginx
+        log "✓ Nginx reloaded"
+    else
+        log "⚠ Nginx configuration test failed"
+    fi
+else
+    log "Nginx not found (expected if running elsewhere)"
+fi
+
+set -e
+
+# ==========================================
 # DEPLOYMENT COMPLETE
 # ==========================================
 
@@ -205,13 +249,14 @@ log "Deployment completed successfully!"
 log "=========================================="
 log "Application directory: $APP_DIR"
 log "Application logs: /var/log/fastapi.log"
-
-PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "unknown")
-log "Application URL: http://$PUBLIC_IP:8000"
-
+log "Local app URL: http://localhost:$APP_PORT"
+log "Public URL: https://ey-ios.com"
+log ""
 log "Useful commands:"
-log "  View logs: tail -f /var/log/fastapi.log"
+log "  View app logs: tail -f /var/log/fastapi.log"
+log "  View nginx logs: sudo tail -f /var/log/nginx/error.log"
 log "  Check process: pgrep -f 'uvicorn app:app'"
 log "  Stop app: pkill -f 'uvicorn app:app'"
+log "  Test websocket: wscat -c wss://ey-ios.com/ws"
 
 exit 0
