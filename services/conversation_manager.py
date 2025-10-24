@@ -18,7 +18,8 @@ class ConversationManager:
         self.container_name = self._find_container_by_hash(user_hash)
         self.stateful = stateful
         self.messages: List[Dict] = []
-        self.system_prompt: Optional[str] = None
+        self.system_prompt: Optional[str] = None # Cached system prompt where cached when it soud get use prompt in  container, how would it look
+        #explaain class syntax with our example.
 
     # ----------------------------------------------------------------------
     # Docker container lookup
@@ -58,9 +59,9 @@ class ConversationManager:
         return bool(result.stdout.strip())
 
     # ----------------------------------------------------------------------
-    # Async command execution
+    # Async command execution #explain, whats diff?
     # ----------------------------------------------------------------------
-    async def _exec(self, command: str) -> str:
+    async def _exec(self, command: str) -> str:##explai thats connection o docker?
         """Run a bash command asynchronously inside the user container."""
         return await execute_bash_command(command, self.container_name)
 
@@ -75,7 +76,7 @@ class ConversationManager:
     async def load_system_prompt(self) -> str:
         """Load system prompt from container (cached after first read)."""
         if self.system_prompt is None:
-            self.system_prompt = await self._exec("cat /data_private/.readme.md")
+            self.system_prompt = await self._exec("cat /data_private/.readme.md")# thats the right path, didnt work tho
         return self.system_prompt
 
     async def get_messages(self) -> List[Dict]:
@@ -116,7 +117,7 @@ class ConversationManager:
     # ----------------------------------------------------------------------
     # Persistence
     # ----------------------------------------------------------------------
-    def save(self, conversation_dir: str = "/data/conversations"):
+    def save(self, conversation_dir: str = "/data/conversations"): #why temporary file?thats temporary in memory?
         """Save conversation state as a JSON file inside the container."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"conv_{self.user_hash}_{timestamp}.json"
@@ -140,9 +141,9 @@ class ConversationManager:
     async def reset(self):
         """Save current conversation, reset session inside the container."""
         self.save()
-        await self._exec("bash /data/scripts/start_new_conversation.sh")
+        await self._exec("bash /data/scripts/start_new_conversation.sh") # we do that already in code? saving data. do we need script?
         self.messages = []
-        self.system_prompt = None
+        self.system_prompt = None # set to privdata /.readme.md
 
 
 # Tool schema for OpenAI integration
@@ -169,25 +170,3 @@ BASH_TOOL_SCHEMA = {
 
 
 
-# we need other way of def reset similar to this:
-
-# When LLM calls tool  -> we dont call a tool, only tool call is bash_tool , we regex <<./scripts/new_conversation.sh>> 
-# tool_result = await manager.execute_bash_tool("bash /data/scripts/new_conv_script.sh")
-# manager.add_tool_result(tool_call_id, tool_result)
-
-# # After that, ConversationManager.messages = [] can be cleared if desired
-# manager.messages = []
-# If you want to ensure that every time this particular script is executed, you also clear the host-side history, you can adjust execute_bash_tool() like this:
-
-# python
-# Code kopieren
-# async def execute_bash_tool(self, command: str) -> str:
-#     """Execute bash command asynchronously in the user's container."""
-#     result = await self._exec(command)
-
-#     # If new conversation script was triggered, reset host-side state
-#     if "new_conv_script.sh" in command:
-#         self.messages = []
-#         self.system_prompt = None  # will reload on next message
-
-#     return result

@@ -11,8 +11,8 @@ NC='\033[0m'
 SHARED_VOLUME="shared_data"
 REGISTRY_FILE="container_registry.json"
 DEFAULT_IMAGE="ubuntu:latest"
-BASE_URL="http://127.0.0.1:8000/"
-#"ey-ios.com/ws" /ws??
+BASE_URL="ey-ios.com/"
+
 
 print_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
@@ -28,7 +28,9 @@ generate_hash() {
 }
 
 usage() {
-    echo "Usage: $0 <container_name> <seed_data_path> <user_info_path>"
+    echo "Usage: $0 <container_name> <seed_data_path> <user_info_path>" # show example command # also we need to fix path issues
+    # local dir structure: datapriv datashared script/this_actual_script services and files: app.py etc...we wanna copy whole thing
+    #exept usual stuff .env .venv , user working dir should be private-data
     exit 1
 }
 
