@@ -1,0 +1,74 @@
+services:
+  # Service name - will be used as the container name
+  bert:
+    
+    build: .
+    container_name: "bert"
+    
+    hostname: "bert"
+    
+    working_dir: /data_private
+    
+    volumes:
+      - "bert_private:/data_private"
+      - shared_data:/data_shared
+    
+    restart: always
+
+    environment:
+      - CONTAINER_NAME=bert
+      - TAGS=metzgerh
+
+    labels:
+      - "user.name=bert"
+      - "user.tags=metzgerh"
+      - "managed_by=spin_up_script"
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'      # Max 1 CPU core
+          memory: 512M      # Max 512 MB RAM
+        reservations:
+          cpus: '0.25'     # Guaranteed 0.25 CPU
+          memory: 128M      # Guaranteed 128 MB RAM
+    
+    networks:
+      - user_network
+    
+   
+    #   - "8080:8080"  # add!
+    #   - "5432:5432"  # Database
+   
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "sleep infinity"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+################################################################################
+# Networks
+# Why custom network? Enables container-to-container communication by name
+################################################################################
+networks:
+  user_network:
+    # Create network if it doesn't exist, or use existing one
+    # Why external: true? Network created by spin_up script, shared by all
+    external: true
+    name: user_shared_network
+
+################################################################################
+# Volumes
+# Why declare volumes here? Makes them explicit and manageable
+################################################################################
+volumes:
+  # Private volume - unique per container
+  bert_private:
+    # External means Docker won't try to create it
+    # We create it in the spin_up script instead
+    external: true
+  
+  # Shared volume - same across all containers
+  shared_data:
+    external: true
