@@ -15,5 +15,3 @@ WORKDIR /llm
 # Keep container running
 CMD ["sleep", "infinity"]
 
-
-sudo yum install tree   #since  its ec2 amazon lunx we cant use apt right?adapt
