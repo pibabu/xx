@@ -18,16 +18,23 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-async def serve_frontend():
-    html_file = Path("index.html")
+# @app.get("/")
+# async def serve_frontend():
+#     html_file = Path("index.html")
 
-    if html_file.exists():
-        return HTMLResponse(content=html_file.read_text())
-    else:
-        return HTMLResponse(
-            content="<h1>Error: index.html not found</h1>", status_code=404
-        )
+#     if html_file.exists():
+#         return HTMLResponse(content=html_file.read_text())
+#     else:
+#         return HTMLResponse(
+#             content="<h1>Error: index.html not found</h1>", status_code=404
+#         )
+
+@app.get("/")
+async def get():
+    with open('index.html', 'r', encoding='utf-8') as f:
+        html_content = f.read()
+    return HTMLResponse(content=html_content)
+
 
 
 def container_exists_by_hash(user_hash: str) -> bool:

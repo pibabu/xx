@@ -78,6 +78,22 @@
       scrollbar-width: thin;
       scrollbar-color: rgba(74, 222, 128, 0.2) transparent;
     }
+    /* Markdown styles */
+    .markdown-content h1 { font-size: 1.5em; font-weight: bold; margin: 0.5em 0; color: #4ade80; }
+    .markdown-content h2 { font-size: 1.3em; font-weight: bold; margin: 0.5em 0; color: #4ade80; }
+    .markdown-content h3 { font-size: 1.1em; font-weight: bold; margin: 0.5em 0; color: #4ade80; }
+    .markdown-content strong { font-weight: bold; color: #facc15; }
+    .markdown-content em { font-style: italic; color: #a78bfa; }
+    .markdown-content code { background: #1a1a1a; padding: 2px 6px; border-radius: 3px; color: #10b981; font-family: monospace; }
+    .markdown-content pre { background: #1a1a1a; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 0.5em 0; }
+    .markdown-content pre code { background: transparent; padding: 0; color: #10b981; }
+    .markdown-content ul { list-style: disc; margin-left: 1.5em; margin: 0.5em 0; }
+    .markdown-content ol { list-style: decimal; margin-left: 1.5em; margin: 0.5em 0; }
+    .markdown-content li { margin: 0.25em 0; }
+    .markdown-content blockquote { border-left: 3px solid #4ade80; padding-left: 1em; color: #9ca3af; margin: 0.5em 0; }
+    .markdown-content a { color: #60a5fa; text-decoration: underline; }
+    .markdown-content hr { border: 0; border-top: 1px solid #374151; margin: 1em 0; }
+    .markdown-content p { margin: 0.5em 0; }
   </style>
 
   <script>
@@ -87,6 +103,61 @@
     // DEBUG: Log everything to console
     console.log('🚀 Script initialized');
     console.log('📍 Current URL:', window.location.href);
+
+    // Markdown parser
+    function parseMarkdown(text) {
+      let html = text;
+      
+      // Code blocks (must be before inline code)
+      html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+        return `<pre><code>${escapeHtml(code.trim())}</code></pre>`;
+      });
+      
+      // Inline code
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+      
+      // Headers
+      html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>');
+      html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
+      html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>');
+      
+      // Bold
+      html = html.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
+      html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+      
+      // Italic
+      html = html.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
+      html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+      
+      // Links
+      html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+      
+      // Blockquotes
+      html = html.replace(/^> (.*$)/gm, '<blockquote>$1</blockquote>');
+      
+      // Horizontal rules
+      html = html.replace(/^---$/gm, '<hr>');
+      html = html.replace(/^\*\*\*$/gm, '<hr>');
+      
+      // Unordered lists
+      html = html.replace(/^\* (.*$)/gm, '<li>$1</li>');
+      html = html.replace(/^- (.*$)/gm, '<li>$1</li>');
+      html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+      
+      // Ordered lists
+      html = html.replace(/^\d+\. (.*$)/gm, '<li>$1</li>');
+      
+      // Line breaks to paragraphs
+      html = html.replace(/\n\n/g, '</p><p>');
+      html = html.replace(/\n/g, '<br>');
+      
+      // Wrap in paragraph if not already wrapped in block element
+      if (!html.match(/^<(h|pre|ul|ol|blockquote|hr)/)) {
+        html = '<p>' + html + '</p>';
+      }
+      
+      return html;
+    }
 
     // Update connection status UI
     function updateStatus(connected) {
@@ -121,7 +192,11 @@
       if (messageId && document.getElementById(messageId)) {
         // Update existing message
         const existingMsg = document.getElementById(messageId);
-        existingMsg.querySelector('.message-content').textContent = content;
+        if (role === 'ai') {
+          existingMsg.querySelector('.message-content').innerHTML = parseMarkdown(content);
+        } else {
+          existingMsg.querySelector('.message-content').textContent = content;
+        }
       } else {
         // Create new message
         const messageDiv = document.createElement('div');
@@ -138,7 +213,7 @@
           messageDiv.innerHTML = `
             <div class="flex items-start space-x-2">
               <span class="text-terminal-prompt">AI:</span>
-              <span class="message-content text-gray-300">${escapeHtml(content)}</span>
+              <span class="message-content markdown-content text-gray-300">${parseMarkdown(content)}</span>
             </div>
           `;
         } else if (role === 'tool') {
@@ -249,6 +324,13 @@
           }
           else if (data.type === 'end') {
             console.log('🔴 AI message END');
+            // Parse the accumulated text as markdown
+            const existingMsg = document.getElementById(currentMessageId);
+            if (existingMsg) {
+              const contentSpan = existingMsg.querySelector('.message-content');
+              const text = contentSpan.textContent;
+              contentSpan.innerHTML = parseMarkdown(text);
+            }
             currentMessageId = null;
           }
           else if (data.type === 'error') {
