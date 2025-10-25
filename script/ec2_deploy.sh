@@ -61,7 +61,7 @@ log "Files copied successfully"
 
 
 
-set +e  # Don't exit if AWS CLI fails
+set +e
 
 # Try to fetch from Parameter Store
 OPENAI_KEY=$(aws ssm get-parameter --name "/fastapi-app/openai-api-key" --with-decryption --query "Parameter.Value" --output text 2>/dev/null)

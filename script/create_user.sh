@@ -14,13 +14,13 @@ REGISTRY_LOCK="container_registry.lock"
 BASE_URL="ey-ios.com"
 NETWORK_NAME="user_shared_network"
 
-# File paths - CORRECTED: script is at root, data dirs are at root
+# File paths - Fixed: data dirs are in parent directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 DOCKERFILE_TEMPLATE="$SCRIPT_DIR/Dockerfile"
 COMPOSE_TEMPLATE="$SCRIPT_DIR/docker-compose.yml"
-SEED_DATA_PRIVATE="$SCRIPT_DIR/data_private"
-SEED_DATA_SHARED="$SCRIPT_DIR/data_shared"
-SEED_SCRIPTS="$SCRIPT_DIR/script"
+SEED_DATA_PRIVATE="$PARENT_DIR/data_private"
+SEED_DATA_SHARED="$PARENT_DIR/data_shared"
 
 print_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
@@ -91,45 +91,35 @@ else
     docker volume create "$PRIVATE_VOLUME" >/dev/null
 fi
 
-# Seed private volume - FIXED: Copy data_private, data_shared, and script directories
-if [ -d "$SEED_DATA_PRIVATE" ] || [ -d "$SEED_DATA_SHARED" ] || [ -d "$SEED_SCRIPTS" ]; then
-    print_info "Seeding private volume with data..."
-    
-    # Create temporary staging directory
-    STAGING_DIR=$(mktemp -d)
-    trap "rm -rf $STAGING_DIR" EXIT
-    
-    # Copy directories to staging
-    [ -d "$SEED_DATA_PRIVATE" ] && cp -r "$SEED_DATA_PRIVATE" "$STAGING_DIR/" && print_info "Copied data_private"
-    [ -d "$SEED_DATA_SHARED" ] && cp -r "$SEED_DATA_SHARED" "$STAGING_DIR/" && print_info "Copied data_shared"
-    [ -d "$SEED_SCRIPTS" ] && cp -r "$SEED_SCRIPTS" "$STAGING_DIR/" && print_info "Copied script directory"
-    
-    # Transfer to volume
+# Seed private volume with data_private only
+if [ -d "$SEED_DATA_PRIVATE" ]; then
+    print_info "Seeding private volume with data_private..."
     docker run --rm \
       -v "$PRIVATE_VOLUME:/mnt/target" \
-      -v "$STAGING_DIR:/mnt/source:ro" \
+      -v "$SEED_DATA_PRIVATE:/mnt/source:ro" \
       ubuntu:latest \
-      bash -c "
-        set -e
-        echo 'Copying files to volume...'
-        cp -r /mnt/source/* /mnt/target/ 2>/dev/null || true
-        
-        # Make scripts executable if script directory exists
-        if [ -d /mnt/target/script ]; then
-          chmod +x /mnt/target/script/*.sh 2>/dev/null || true
-          echo 'Made scripts executable'
-        fi
-        
-        # Set ownership
-        chown -R 1000:1000 /mnt/target
-        
-        echo 'Volume contents:'
-        ls -la /mnt/target/
-      " 2>&1
-    
-    print_success "Data seeded to private volume"
+      bash -c "cp -r /mnt/source/* /mnt/target/ 2>/dev/null || true; chown -R 1000:1000 /mnt/target" 2>&1 | grep -v "debconf" || true
+    print_success "Private data seeded"
 else
-    print_warning "No seed data found, volume will be empty"
+    print_warning "No private data found, volume will be empty"
+fi
+
+# Seed shared volume with data_shared (one-time initialization)
+if [ -d "$SEED_DATA_SHARED" ]; then
+    # Check if shared volume is empty
+    IS_EMPTY=$(docker run --rm -v "$SHARED_VOLUME:/mnt/shared" ubuntu:latest bash -c "[ -z \"\$(ls -A /mnt/shared 2>/dev/null)\" ] && echo 'yes' || echo 'no'")
+    
+    if [ "$IS_EMPTY" = "yes" ]; then
+        print_info "Seeding shared volume with data_shared (first time)..."
+        docker run --rm \
+          -v "$SHARED_VOLUME:/mnt/target" \
+          -v "$SEED_DATA_SHARED:/mnt/source:ro" \
+          ubuntu:latest \
+          bash -c "cp -r /mnt/source/* /mnt/target/ 2>/dev/null || true; chown -R 1000:1000 /mnt/target" 2>&1 | grep -v "debconf" || true
+        print_success "Shared data seeded"
+    else
+        print_info "Shared volume already has data, skipping seed"
+    fi
 fi
 
 # Initialize shared volume registry if needed
@@ -140,12 +130,10 @@ docker run --rm \
   bash -c "
     mkdir -p /mnt/shared
     REGISTRY='/mnt/shared/$REGISTRY_FILE'
-    
     if [ ! -f \"\$REGISTRY\" ]; then
       echo '[]' > \"\$REGISTRY\"
-      echo 'Created new registry'
+      chmod 666 \"\$REGISTRY\"
     fi
-    chmod 666 \"\$REGISTRY\"
   " 2>&1 | grep -v "debconf" || true
 
 # Register container in shared registry with file locking
@@ -158,7 +146,7 @@ docker run --rm \
     apt-get update -qq && apt-get install -y -qq jq >/dev/null 2>&1
     REGISTRY='/mnt/shared/$REGISTRY_FILE'
     LOCKFILE='/mnt/shared/$REGISTRY_LOCK'
-    
+
     # Simple file-based locking
     RETRIES=0
     while ! mkdir \"\$LOCKFILE\" 2>/dev/null; do
@@ -167,12 +155,11 @@ docker run --rm \
       [ \$RETRIES -gt 50 ] && { echo 'Lock timeout'; exit 1; }
     done
     trap 'rmdir \"\$LOCKFILE\" 2>/dev/null || true' EXIT
-    
+
     # Add new entry to JSON array
     NEW_ENTRY='{\"container_name\":\"$CONTAINER_NAME\",\"user_tag\":\"$USER_TAG\",\"created\":\"$TIMESTAMP\"}'
     jq --argjson entry \"\$NEW_ENTRY\" '. += [\$entry]' \"\$REGISTRY\" > /tmp/registry_new.json
     mv /tmp/registry_new.json \"\$REGISTRY\"
-    echo 'Registry updated successfully'
   " >/dev/null 2>&1
 
 print_success "Container registered in shared registry"
@@ -219,7 +206,7 @@ fi
 
 print_info "Using: $COMPOSE_CMD"
 
-# Build and start (removed --no-cache for compatibility)
+# Build and start (removed problematic flags)
 $COMPOSE_CMD build
 $COMPOSE_CMD up -d
 
@@ -231,16 +218,6 @@ sleep 3
 
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     print_success "Container is running"
-    
-    # Verify volumes are mounted
-    print_info "Verifying volume mounts..."
-    docker exec "$CONTAINER_NAME" bash -c "
-      echo 'Private volume root:'
-      ls -la /app/private/ 2>/dev/null || echo 'Empty or not accessible'
-      echo ''
-      echo 'Shared volume root:'
-      ls -la /app/shared/ 2>/dev/null || echo 'Empty or not accessible'
-    "
 else
     print_error "Container failed to start"
     print_error "Check logs with: cd $USER_DIR && $COMPOSE_CMD logs"
