@@ -14,7 +14,7 @@ REGISTRY_LOCK="container_registry.lock"
 BASE_URL="ey-ios.com"
 NETWORK_NAME="user_shared_network"
 
-# File paths - Fixed: data dirs are in parent directory
+# File paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 DOCKERFILE_TEMPLATE="$SCRIPT_DIR/Dockerfile"
@@ -50,24 +50,22 @@ usage() {
 CONTAINER_NAME="$1"
 USER_TAG="$2"
 
-# Validate inputs
 validate_name "$CONTAINER_NAME"
 
-# Validate required files exist
+# Validate required files
 [ ! -f "$DOCKERFILE_TEMPLATE" ] && { print_error "Dockerfile not found: $DOCKERFILE_TEMPLATE"; exit 1; }
 [ ! -f "$COMPOSE_TEMPLATE" ] && { print_error "Docker Compose template not found: $COMPOSE_TEMPLATE"; exit 1; }
-[ ! -d "$SEED_DATA_PRIVATE" ] && { print_warning "Private data path not found: $SEED_DATA_PRIVATE (will create empty)"; }
-[ ! -d "$SEED_DATA_SHARED" ] && { print_warning "Shared data path not found: $SEED_DATA_SHARED (will skip)"; }
+[ ! -d "$SEED_DATA_PRIVATE" ] && print_warning "Private data path not found: $SEED_DATA_PRIVATE (will create empty)"
+[ ! -d "$SEED_DATA_SHARED" ] && print_warning "Shared data path not found: $SEED_DATA_SHARED (will skip)"
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 USER_HASH=$(generate_hash)
 PRIVATE_VOLUME="${CONTAINER_NAME}_private"
-
-# Create user-specific directory for docker-compose
 USER_DIR="$SCRIPT_DIR/users/${CONTAINER_NAME}"
+
 mkdir -p "$USER_DIR"
 
-# Create shared network if it doesn't exist
+# Create shared network if needed
 if ! docker network inspect "$NETWORK_NAME" &>/dev/null; then
     print_info "Creating shared network: $NETWORK_NAME"
     docker network create "$NETWORK_NAME" >/dev/null
@@ -91,26 +89,23 @@ else
     docker volume create "$PRIVATE_VOLUME" >/dev/null
 fi
 
-# Seed private volume with data_private only
+# Seed private volume
 if [ -d "$SEED_DATA_PRIVATE" ]; then
-    print_info "Seeding private volume with data_private..."
+    print_info "Seeding private volume..."
     docker run --rm \
       -v "$PRIVATE_VOLUME:/mnt/target" \
       -v "$SEED_DATA_PRIVATE:/mnt/source:ro" \
       ubuntu:latest \
       bash -c "cp -r /mnt/source/* /mnt/target/ 2>/dev/null || true; chown -R 1000:1000 /mnt/target" 2>&1 | grep -v "debconf" || true
     print_success "Private data seeded"
-else
-    print_warning "No private data found, volume will be empty"
 fi
 
-# Seed shared volume with data_shared (one-time initialization)
+# Seed shared volume (one-time)
 if [ -d "$SEED_DATA_SHARED" ]; then
-    # Check if shared volume is empty
     IS_EMPTY=$(docker run --rm -v "$SHARED_VOLUME:/mnt/shared" ubuntu:latest bash -c "[ -z \"\$(ls -A /mnt/shared 2>/dev/null)\" ] && echo 'yes' || echo 'no'")
     
     if [ "$IS_EMPTY" = "yes" ]; then
-        print_info "Seeding shared volume with data_shared (first time)..."
+        print_info "Seeding shared volume (first time)..."
         docker run --rm \
           -v "$SHARED_VOLUME:/mnt/target" \
           -v "$SEED_DATA_SHARED:/mnt/source:ro" \
@@ -122,21 +117,20 @@ if [ -d "$SEED_DATA_SHARED" ]; then
     fi
 fi
 
-# Initialize shared volume registry if needed
+# Initialize registry
 print_info "Checking shared volume registry..."
 docker run --rm \
   -v "$SHARED_VOLUME:/mnt/shared" \
   ubuntu:latest \
   bash -c "
     mkdir -p /mnt/shared
-    REGISTRY='/mnt/shared/$REGISTRY_FILE'
-    if [ ! -f \"\$REGISTRY\" ]; then
-      echo '[]' > \"\$REGISTRY\"
-      chmod 666 \"\$REGISTRY\"
+    if [ ! -f /mnt/shared/$REGISTRY_FILE ]; then
+      echo '[]' > /mnt/shared/$REGISTRY_FILE
+      chmod 666 /mnt/shared/$REGISTRY_FILE
     fi
   " 2>&1 | grep -v "debconf" || true
 
-# Register container in shared registry with file locking
+# Register container
 print_info "Registering container in shared registry..."
 docker run --rm \
   -v "$SHARED_VOLUME:/mnt/shared" \
@@ -147,7 +141,6 @@ docker run --rm \
     REGISTRY='/mnt/shared/$REGISTRY_FILE'
     LOCKFILE='/mnt/shared/$REGISTRY_LOCK'
 
-    # Simple file-based locking
     RETRIES=0
     while ! mkdir \"\$LOCKFILE\" 2>/dev/null; do
       sleep 0.1
@@ -156,75 +149,68 @@ docker run --rm \
     done
     trap 'rmdir \"\$LOCKFILE\" 2>/dev/null || true' EXIT
 
-    # Add new entry to JSON array
     NEW_ENTRY='{\"container_name\":\"$CONTAINER_NAME\",\"user_tag\":\"$USER_TAG\",\"created\":\"$TIMESTAMP\"}'
     jq --argjson entry \"\$NEW_ENTRY\" '. += [\$entry]' \"\$REGISTRY\" > /tmp/registry_new.json
     mv /tmp/registry_new.json \"\$REGISTRY\"
   " >/dev/null 2>&1
 
-print_success "Container registered in shared registry"
+print_success "Container registered"
 
-# Copy Dockerfile to user directory
-print_info "Preparing docker-compose configuration..."
+# Prepare configuration
+print_info "Preparing configuration..."
 cp "$DOCKERFILE_TEMPLATE" "$USER_DIR/Dockerfile"
 
-# Generate docker-compose.yml from template
 sed -e "s/{{CONTAINER_NAME}}/$CONTAINER_NAME/g" \
     -e "s/{{PRIVATE_VOLUME}}/$PRIVATE_VOLUME/g" \
     -e "s/{{TAGS}}/$USER_TAG/g" \
     "$COMPOSE_TEMPLATE" > "$USER_DIR/docker-compose.yml"
 
-print_success "Configuration files created in $USER_DIR"
+print_success "Configuration created"
 
-# Check if container already exists
+# Check if container exists
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     print_warning "Container '$CONTAINER_NAME' already exists"
     read -p "Remove and recreate? (yes/no): " confirm
     if [ "$confirm" = "yes" ]; then
-        cd "$USER_DIR"
-        docker compose down 2>/dev/null || docker-compose down 2>/dev/null || true
-        cd - >/dev/null
+        docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
     else
         print_error "Deployment aborted"
         exit 1
     fi
 fi
 
-# Build and start container using docker compose
+# Build and start container
 print_info "Building and starting container..."
+
 cd "$USER_DIR"
 
-# Detect docker compose command
-if docker compose version &>/dev/null; then
-    COMPOSE_CMD="docker compose"
-elif command -v docker-compose &>/dev/null; then
-    COMPOSE_CMD="docker-compose"
+# Use docker compose (v2) or docker-compose (v1)
+if command -v docker-compose &>/dev/null; then
+    docker-compose build --no-cache
+    docker-compose up -d
+elif docker compose version &>/dev/null; then
+    docker compose build --no-cache
+    docker compose up -d
 else
     print_error "Neither 'docker compose' nor 'docker-compose' found"
     exit 1
 fi
 
-print_info "Using: $COMPOSE_CMD" ######here is the problem ...but were is allow flag??
-
-# Build and start (removed problematic flags)
-$COMPOSE_CMD build
-$COMPOSE_CMD up -d
-
 cd - >/dev/null
 
-# Wait for container to be ready
-print_info "Waiting for container to be ready..."
+# Wait for container
+print_info "Waiting for container..."
 sleep 3
 
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     print_success "Container is running"
 else
     print_error "Container failed to start"
-    print_error "Check logs with: cd $USER_DIR && $COMPOSE_CMD logs"
+    print_error "Check logs: cd $USER_DIR && docker-compose logs"
     exit 1
 fi
 
-# Add labels to the running container
+# Add labels
 docker update --label-add "user_tag=$USER_TAG" \
               --label-add "created=$TIMESTAMP" \
               "$CONTAINER_NAME" 2>/dev/null || true
@@ -246,10 +232,10 @@ echo "📂 Configuration: $USER_DIR"
 echo "📂 Private Data: /app/private (read-write)"
 echo "📂 Shared Data: /app/shared (read-write)"
 echo ""
-echo "🔧 Management Commands:"
+echo "🔧 Management:"
 echo "   cd $USER_DIR"
-echo "   $COMPOSE_CMD logs -f      # View logs"
-echo "   $COMPOSE_CMD restart      # Restart container"
-echo "   $COMPOSE_CMD down         # Stop and remove"
+echo "   docker-compose logs -f"
+echo "   docker-compose restart"
+echo "   docker-compose down"
 echo ""
 echo "=============================================="
