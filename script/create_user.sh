@@ -86,7 +86,7 @@ else
     docker volume create "$PRIVATE_VOLUME" >/dev/null
 fi
 
-# Copy seed data to private volume - IMPROVED VERSION
+# Copy seed data to private volume - IMPROVED VERSION # we only transfer data_priv and data_shared dirs and wats inthem, and script dir and we need to chmod the scripts create_user
 print_info "Seeding private volume with data..."
 SEED_RESULT=$(docker run --rm \
   -v "$PRIVATE_VOLUME:/mnt/target" \
