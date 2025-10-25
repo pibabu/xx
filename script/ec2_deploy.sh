@@ -40,8 +40,6 @@ else
 fi
 
 # ==========================================
-# STEP 2: Copy New Code
-# ==========================================
 log "Step 2: Copying application files"
 
 log "Current directory: $(pwd)"
@@ -53,7 +51,11 @@ rsync -av --exclude='.git' --exclude='venv' --exclude='.env' ./ "$APP_DIR/"
 
 sudo chown -R $APP_USER:$APP_USER "$APP_DIR"
 
-log "Files copied successfully"
+log "Setting execute permissions for scripts"
+find "$APP_DIR" -type f -name "*.sh" -exec chmod +x {} \;
+
+log "Files copied and permissions set successfully"
+
 
 # ==========================================
 # STEP 3: Create .env from AWS Systems Manager Parameter Store
