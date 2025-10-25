@@ -83,6 +83,9 @@
   <script>
     let ws = null;
     let currentMessageId = null;
+    let commandHistory = [];
+    let historyIndex = -1;
+    let currentInput = '';
 
     // DEBUG: Log everything to console
     console.log('🚀 Script initialized');
@@ -314,6 +317,15 @@
       try {
         ws.send(payload);
         console.log('✅ Message sent successfully!');
+        
+        // Add to command history
+        commandHistory.push(message);
+        console.log('📚 Command added to history. Total commands:', commandHistory.length);
+        
+        // Reset history navigation
+        historyIndex = -1;
+        currentInput = '';
+        
         appendMessage('user', message);
         input.value = '';
       } catch (error) {
@@ -325,9 +337,47 @@
     // Handle input key events
     function handleInputKey(event) {
       console.log('⌨️ Key pressed:', event.key);
+      const input = document.getElementById('user-input');
+      
       if (event.key === 'Enter') {
         console.log('↩️ Enter key detected, calling sendMessage()');
         sendMessage();
+      } 
+      else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        console.log('⬆️ Arrow up pressed');
+        
+        if (commandHistory.length === 0) return;
+        
+        // Save current input if we're at the bottom
+        if (historyIndex === -1) {
+          currentInput = input.value;
+        }
+        
+        // Move up in history
+        if (historyIndex < commandHistory.length - 1) {
+          historyIndex++;
+          input.value = commandHistory[commandHistory.length - 1 - historyIndex];
+          console.log(`📜 History index: ${historyIndex}, showing: "${input.value}"`);
+        }
+      }
+      else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        console.log('⬇️ Arrow down pressed');
+        
+        if (historyIndex === -1) return;
+        
+        // Move down in history
+        historyIndex--;
+        
+        if (historyIndex === -1) {
+          // Back to current input
+          input.value = currentInput;
+          console.log('📜 Restored current input');
+        } else {
+          input.value = commandHistory[commandHistory.length - 1 - historyIndex];
+          console.log(`📜 History index: ${historyIndex}, showing: "${input.value}"`);
+        }
       }
     }
 
