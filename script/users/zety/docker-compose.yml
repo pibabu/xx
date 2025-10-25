@@ -1,0 +1,52 @@
+services:
+  zety:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: "zety"
+    hostname: "zety"
+    
+    # Start in private data directory
+    working_dir: /app/private
+    
+    # Volume mounts - shared is now read-write
+    volumes:
+      - "zety_private:/app/private"
+      - shared_data:/app/shared:rw
+    
+    restart: unless-stopped
+    
+    # Environment variables available inside container
+    environment:
+      - CONTAINER_NAME=zety
+      - TAGS=arzt
+      - PRIVATE_DATA_PATH=/app/private
+      - SHARED_DATA_PATH=/app/shared
+    
+    # Labels for container metadata
+    labels:
+      - "user.name=zety"
+      - "user.tags=arzt"
+    
+    
+    networks:
+      - user_shared_network
+    
+    # Health check
+    healthcheck:
+      test: ["CMD-SHELL", "test -d /app/private && test -d /app/shared"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+networks:
+  user_shared_network:
+    external: true
+
+volumes:
+  zety_private:
+    external: true
+  
+  shared_data:
+    external: true

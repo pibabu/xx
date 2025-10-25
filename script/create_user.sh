@@ -179,20 +179,26 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     fi
 fi
 
+
 # Build and start container
 print_info "Building and starting container..."
 
 cd "$USER_DIR"
 
-# Use docker compose (v2) or docker-compose (v1)
-if command -v docker-compose &>/dev/null; then
-    docker-compose build --no-cache
-    docker-compose up -d
-elif docker compose version &>/dev/null; then
-    docker compose build --no-cache
-    docker compose up -d
+# Disable BuildKit and Buildx to avoid --allow flag issues
+export DOCKER_BUILDKIT=0
+export COMPOSE_DOCKER_CLI_BUILD=0
+export BUILDKIT_PROGRESS=plain
+
+# Use standalone docker-compose (v1 style) to avoid buildx
+COMPOSE_BIN="/usr/local/bin/docker-compose"
+
+if [ -f "$COMPOSE_BIN" ]; then
+    print_info "Using: $COMPOSE_BIN (BuildKit disabled)"
+    "$COMPOSE_BIN" build --no-cache
+    "$COMPOSE_BIN" up -d
 else
-    print_error "Neither 'docker compose' nor 'docker-compose' found"
+    print_error "docker-compose not found at $COMPOSE_BIN"
     exit 1
 fi
 
