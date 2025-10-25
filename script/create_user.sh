@@ -204,7 +204,7 @@ else
     exit 1
 fi
 
-print_info "Using: $COMPOSE_CMD"
+print_info "Using: $COMPOSE_CMD" ######here is the problem ...but were is allow flag??
 
 # Build and start (removed problematic flags)
 $COMPOSE_CMD build

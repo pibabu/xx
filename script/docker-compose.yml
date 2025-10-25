@@ -39,7 +39,7 @@ services:
           memory: 128M
     
     networks:
-      - user_network
+      - user_shared_network
     
     # Health check
     healthcheck:
@@ -50,9 +50,8 @@ services:
       start_period: 10s
 
 networks:
-  user_network:
+  user_shared_network:
     external: true
-    name: user_shared_network
 
 volumes:
   {{PRIVATE_VOLUME}}:
