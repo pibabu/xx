@@ -42,10 +42,7 @@ def container_exists_by_hash(user_hash: str) -> bool:
 
 
 @app.websocket("/ws/{user_hash}")
-async def websocket_endpoint(
-    websocket: WebSocket, 
-    user_hash: str  # From URL path
-):
+async def websocket_endpoint(websocket: WebSocket, user_hash: str):
     print(f"DEBUG: WebSocket connection attempt for user_hash={user_hash}")
     
     if not container_exists_by_hash(user_hash):
@@ -53,42 +50,59 @@ async def websocket_endpoint(
         await websocket.close(code=1008, reason="Container not found")
         return
     
-    
     await websocket.accept()
     print(f"✓ Client connected: {user_hash}")
-
-    #user_id = ""  # ##### <---
-    #cm = ConversationManager(user_hash, stateful=True)
+    
     manager = ConversationManager(user_hash=user_hash)
-
+    
     try:
         while True:
-            
             data = await websocket.receive_text()
-            message_data = json.loads(data)
+            print(f"DEBUG: Received data: {data[:100]}")  # Log what we receive
+            
+            # Validate JSON
+            try:
+                message_data = json.loads(data)
+            except json.JSONDecodeError as e:
+                print(f"✗ Invalid JSON: {e}")
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Invalid JSON format. Please send: {{'message': 'your text'}}"
+                })
+                continue  # Don't close, keep connection open
+            
             user_message = message_data.get("message", "")
-
-            # Add user message using correct method
+            if not user_message:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Missing 'message' field"
+                })
+                continue
+            
+            print(f"DEBUG: Processing message: {user_message}")
             manager.add_user_message(user_message)
-            
-            # Process message with LLM (streams response via websocket)
             await process_message(manager, websocket)
-            
-            # Note: process_message handles streaming,
-            # actual response tracking would need to be added
-
+    
     except WebSocketDisconnect:
         print("✗ Client disconnected")
     except Exception as e:
-        print(f"✗ Error: {e}")
+        print(f"✗ Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
-        manager.save()
+        print("DEBUG: Saving conversation...")
+        try:
+            manager.save()
+            print("DEBUG: Conversation saved successfully")
+        except Exception as e:
+            print(f"DEBUG: Save failed: {e}")
+        
         try:
             await websocket.close()
         except:
             pass
-
-
+        
+        
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
