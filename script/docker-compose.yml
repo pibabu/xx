@@ -7,12 +7,12 @@ services:
     hostname: "{{CONTAINER_NAME}}"
     
     # Start in private data directory
-    working_dir: /app/private
+    working_dir: /llm/private
     
     # Volume mounts - shared is now read-write
     volumes:
-      - "{{PRIVATE_VOLUME}}:/app/private"
-      - shared_data:/app/shared:rw
+      - "{{PRIVATE_VOLUME}}:/llm/private"
+      - shared_data:/llm/shared:rw
     
     restart: unless-stopped
     
@@ -20,8 +20,8 @@ services:
     environment:
       - CONTAINER_NAME={{CONTAINER_NAME}}
       - TAGS={{TAGS}}
-      - PRIVATE_DATA_PATH=/app/private
-      - SHARED_DATA_PATH=/app/shared
+      - PRIVATE_DATA_PATH=/llm/private
+      - SHARED_DATA_PATH=/llm/shared
     
     # Labels for container metadata
     labels:
@@ -35,7 +35,7 @@ services:
     
     # Health check
     healthcheck:
-      test: ["CMD-SHELL", "test -d /app/private && test -d /app/shared"]
+      test: ["CMD-SHELL", "test -d /llm/private && test -d /llm/shared"]
       interval: 30s
       timeout: 3s
       retries: 3
