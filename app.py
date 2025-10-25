@@ -115,13 +115,3 @@ async def health_check():
     """Health check endpoint"""
     return {"status": "ok"}
 
-
-@app.post("/reset/{user_hash}")   ###change ??
-async def reset_conversation(user_hash: str):
-
-    try:
-        manager = ConversationManager(user_hash)
-        manager.reset()
-        return {"status": "success", "message": f"Conversation reset for user {user_hash}"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
