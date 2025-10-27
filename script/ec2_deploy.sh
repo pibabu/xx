@@ -176,6 +176,9 @@ log "Step 8: Starting new application"
 
 cd "$APP_DIR"
 
+# Create logs directory if it doesn't exist
+mkdir -p "$APP_DIR/logs"
+
 log "Starting uvicorn server on port $APP_PORT"
 nohup "$VENV_DIR/bin/python" -m uvicorn app:app \
     --host 0.0.0.0 \
@@ -183,7 +186,7 @@ nohup "$VENV_DIR/bin/python" -m uvicorn app:app \
     --log-level info \
     --proxy-headers \
     --forwarded-allow-ips='*' \
-    > /var/log/fastapi.log 2>&1 &
+    > "$APP_DIR/logs/fastapi.log" 2>&1 &
 
 APP_PID=$!
 log "Application started with PID: $APP_PID"
@@ -206,14 +209,14 @@ if pgrep -f "uvicorn app:app" > /dev/null; then
         log "✓ Application responding to HTTP requests (HTTP $HTTP_CODE)"
     else
         log "⚠ Application running but may not be ready yet (HTTP $HTTP_CODE)"
-        log "Check logs: tail -f /var/log/fastapi.log"
+        log "Check logs: tail -f $APP_DIR/logs/fastapi.log"
     fi
     
     set -e
 else
     log "✗ ERROR: Application failed to start!"
     log "=== Last 30 lines of application log ==="
-    tail -n 30 /var/log/fastapi.log | tee -a "$LOG_FILE"
+    tail -n 30 "$APP_DIR/logs/fastapi.log" | tee -a "$LOG_FILE"
     log "======================================="
     exit 1
 fi
@@ -240,7 +243,43 @@ else
     log "Nginx not found (expected if running elsewhere)"
 fi
 
+
+# ==========================================
+# STEP 11: Create Random User
+# ==========================================
+log "Step 11: Creating random user"
+
+set +e
+
+if [ -f "$APP_DIR/script/create_user.sh" ]; then
+    # Generate random 5-character name (alphanumeric lowercase)
+    RANDOM_NAME=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 5 | head -n 1)
+    RANDOM_JOB="developer"  # Change this to desired job title
+    
+    log "Running create_user.sh with name: $RANDOM_NAME, job: $RANDOM_JOB"
+    
+    # Create logs directory if it doesn't exist
+    mkdir -p "$APP_DIR/logs"
+    
+    # Run script and capture output to both deployment log and separate file
+    SCRIPT_LOG="$APP_DIR/logs/create_user_$(date '+%Y%m%d_%H%M%S').log"
+    
+    bash "$APP_DIR/script/create_user.sh" "$RANDOM_NAME" "$RANDOM_JOB" 2>&1 | tee -a "$LOG_FILE" "$SCRIPT_LOG"
+    
+    if [ $? -eq 0 ]; then
+        log "✓ User creation script completed successfully"
+        log "   Script output saved to: $SCRIPT_LOG"
+    else
+        log "⚠ User creation script returned non-zero exit code (continuing anyway)"
+        log "   Check logs at: $SCRIPT_LOG"
+    fi
+else
+    log "⚠ create_user.sh not found at $APP_DIR/script/create_user.sh"
+fi
+
 set -e
+
+
 
 # ==========================================
 # DEPLOYMENT COMPLETE
