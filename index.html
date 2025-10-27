@@ -35,8 +35,8 @@
         <span id="status-text" class="text-xs text-gray-500">Disconnected</span>
       </div>
       <button id="reconnect-btn" class="text-xs text-terminal-prompt hover:underline hidden" onclick="connectWebSocket()">
-          Reconnect
-        </button>
+        Reconnect
+      </button>
     </div>
     <!-- Chat history container -->
     <div id="chat-history" class="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
@@ -105,7 +105,7 @@
     console.log('🚀 Script initialized');
     console.log('📍 Current URL:', window.location.href);
 
-    // Markdown parser - SIMPLIFIED version
+    // Markdown parser
     function parseMarkdown(text) {
       let html = text;
       
@@ -140,27 +140,22 @@
       html = html.replace(/^---$/gm, '<hr>');
       html = html.replace(/^\*\*\*$/gm, '<hr>');
       
-      // Lists - simplified approach
-      // First handle ordered lists
-      html = html.replace(/(\d+\.\s+.*)(?:\n\d+\.\s+.*)*/g, (match) => {
-        const items = match.split('\n').map(item => {
-          const cleaned = item.replace(/^\d+\.\s+/, '');
-          return `<li>${cleaned}</li>`;
-        }).join('');
-        return `<ol>${items}</ol>`;
-      });
+      // Unordered lists
+      html = html.replace(/^\* (.*$)/gm, '<li>$1</li>');
+      html = html.replace(/^- (.*$)/gm, '<li>$1</li>');
+      html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
       
-      // Then handle unordered lists
-      html = html.replace(/([\*\-+]\s+.*)(?:\n[\*\-+]\s+.*)*/g, (match) => {
-          const items = match.split('\n').map(item => {
-            const cleaned = item.replace(/^[\*\-+]\s+/, '');
-            return `<li>${cleaned}</li>`;
-          }).join('');
-          return `<ul>${items}</ul>`;
-        });
+      // Ordered lists
+      html = html.replace(/^\d+\. (.*$)/gm, '<li>$1</li>');
       
-      // Line breaks - but NO paragraph wrapping
+      // Line breaks to paragraphs
+      html = html.replace(/\n\n/g, '</p><p>');
       html = html.replace(/\n/g, '<br>');
+      
+      // Wrap in paragraph if not already wrapped in block element
+      if (!html.match(/^<(h|pre|ul|ol|blockquote|hr)/)) {
+        html = '<p>' + html + '</p>';
+      }
       
       return html;
     }
@@ -459,4 +454,7 @@
     });
   </script>
 </body>
-</html>  
+</html>
+
+
+
