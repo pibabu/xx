@@ -251,8 +251,6 @@ log "Deployment completed successfully!"
 log "=========================================="
 log "Application directory: $APP_DIR"
 log "Application logs: /var/log/fastapi.log"
-log "Local app URL: http://localhost:$APP_PORT"
-log "Public URL: https://ey-ios.com"
 log ""
 log "Useful commands:"
 log "  View app logs: tail -f /var/log/fastapi.log"
@@ -262,3 +260,6 @@ log "  Stop app: pkill -f 'uvicorn app:app'"
 log "  Test websocket: wscat -c wss://ey-ios.com/ws"
 
 exit 0
+
+
+# we need to run script in the end: /script/create_user.sh   with two parameters: name and job, we cant use same name twice

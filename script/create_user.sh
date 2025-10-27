@@ -257,4 +257,7 @@ echo "   docker-compose down"
 echo ""
 echo "=============================================="
 
+
+
+#   docker exec -it $CONTAINER_NAME bash" -> er soll in container run data_private/
 ### shared data wird nicht kopiert...er fragt nach, aber macht dann nichts

@@ -13,7 +13,7 @@ class ConversationManager:
     
     Key responsibilities:
     1. Find and track user's Docker container by user_hash label
-    2. Load system prompt from container's /data_private/.readme.md
+    2. Load system prompt from container's /data_private/readme.md
     3. Maintain conversation history (user/assistant/tool messages)
     4. Execute bash commands inside container via bash_tool
     5. Persist conversations to container storage
@@ -90,13 +90,13 @@ class ConversationManager:
     async def load_system_prompt(self) -> str:
         """
         Load system prompt from /data_private/readme.md inside container.
-        Caches result to avoid repeated file reads.
+        Caches result to avoid repeated file reads.#
         """
         if self.system_prompt is None:
             print("📄 Loading system prompt from container...")
             try:
                 # Read the system prompt file
-                self.system_prompt = await self._exec("cat /data_private/readme.md")
+                self.system_prompt = await self._exec("cat /data_private/readme.md") ###change: its : llm/private  where does it execute from?since we have working dir set to llm??
                 
                 # Validate we got content
                 if not self.system_prompt or self.system_prompt.strip() == "":
@@ -186,7 +186,7 @@ class ConversationManager:
                 "messages": self.messages
             }, f, indent=2)
 
-        # Copy to container's /data_private/conversations directory
+        # Copy to container's /data_private/conversations directory  ---change as well
         result = subprocess.run(
             ["docker", "cp", tmpfile, f"{self.container_name}:{conversation_dir}/{filename}"],
             capture_output=True,
@@ -245,3 +245,5 @@ BASH_TOOL_SCHEMA = {
         }
     }
 }
+
+##where does all the debugging print go? explain

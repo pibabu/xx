@@ -1,14 +1,14 @@
-// add llm_behavior_and_style
+// import llm_behavior_and_style
 
 context management hier:
-welche files kommen ins prompt -> oder dynamisch, da llm überblick hat und selbst context management betreibt, 
-beides---user schreibt req
+-llm updatet hier einstellugen, a la "supervisor macht dies das", "das ist an, das aus" und - jedesmal git commit
 variable  vs "settings"
+- user hier auch?
 
 # settings for subprocesses:
 
-challenge: no diets
-save_token: tell user what gets deleted
+challenge: yes, but no diets
+save_token: llm tells user what gets deleted and asks permission
 
 # cron jobs in this conversation:
 git: 
