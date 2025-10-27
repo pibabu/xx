@@ -140,13 +140,25 @@
       html = html.replace(/^---$/gm, '<hr>');
       html = html.replace(/^\*\*\*$/gm, '<hr>');
       
-      // Unordered lists
-      html = html.replace(/^\* (.*$)/gm, '<li>$1</li>');
-      html = html.replace(/^- (.*$)/gm, '<li>$1</li>');
-      html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+      // Unordered lists - fixed implementation
+      html = html.replace(/(?:^|\n)(\*|-|\+)\s+(.*(?:\n(?!\n).*)*)/g, (match, bullet, content) => {
+        const items = match.trim().split('\n');
+        const listItems = items.map(item => {
+          const cleaned = item.replace(/^(\*|-|\+)\s+/, '');
+          return `<li>${cleaned}</li>`;
+        }).join('');
+        return `<ul>${listItems}</ul>`;
+      });
       
-      // Ordered lists
-      html = html.replace(/^\d+\. (.*$)/gm, '<li>$1</li>');
+      // Ordered lists - fixed implementation
+      html = html.replace(/(?:^|\n)(\d+)\.\s+(.*(?:\n(?!\n).*)*)/g, (match, number, content) => {
+        const items = match.trim().split('\n');
+        const listItems = items.map(item => {
+          const cleaned = item.replace(/^\d+\.\s+/, '');
+          return `<li>${cleaned}</li>`;
+        }).join('');
+        return `<ol>${listItems}</ol>`;
+      });
       
       // Line breaks to paragraphs
       html = html.replace(/\n\n/g, '</p><p>');
@@ -206,21 +218,21 @@
         if (role === 'user') {
           messageDiv.innerHTML = `
             <div class="flex items-start space-x-2">
-              <span class="text-terminal-prompt flex-shrink-0">You:</span>
+              <span class="text-terminal-prompt">You:</span>
               <span class="message-content text-terminal-input">${escapeHtml(content)}</span>
             </div>
           `;
         } else if (role === 'ai') {
           messageDiv.innerHTML = `
             <div class="flex items-start space-x-2">
-              <span class="text-terminal-prompt flex-shrink-0">LLM:</span>
+              <span class="text-terminal-prompt">LLM:</span>
               <span class="message-content markdown-content text-gray-300">${parseMarkdown(content)}</span>
             </div>
           `;
         } else if (role === 'tool') {
           messageDiv.innerHTML = `
             <div class="flex items-start space-x-2">
-              <span class="text-yellow-500 flex-shrink-0">🔧</span>
+              <span class="text-yellow-500">🔧</span>
               <span class="message-content text-yellow-400">${escapeHtml(content)}</span>
             </div>
           `;
