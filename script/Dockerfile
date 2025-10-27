@@ -1,13 +1,15 @@
 FROM ubuntu:latest
 
 # Install basic tools
+
 RUN apt-get update && apt-get install -y \
+    apt-utils \
     curl \
-    vim \
     git \
     jq \
     tree \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Set working directory
 WORKDIR /llm
