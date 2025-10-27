@@ -100,6 +100,8 @@ class ConversationManager:
         
         
         
+
+        
         
 # ----------------------------------------------------------------------
 # Tool schema for OpenAI API

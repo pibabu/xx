@@ -105,7 +105,7 @@
     console.log('🚀 Script initialized');
     console.log('📍 Current URL:', window.location.href);
 
-    // Markdown parser
+    // Markdown parser - SIMPLIFIED version
     function parseMarkdown(text) {
       let html = text;
       
@@ -140,34 +140,27 @@
       html = html.replace(/^---$/gm, '<hr>');
       html = html.replace(/^\*\*\*$/gm, '<hr>');
       
-      // Unordered lists - fixed implementation
-      html = html.replace(/(?:^|\n)(\*|-|\+)\s+(.*(?:\n(?!\n).*)*)/g, (match, bullet, content) => {
-        const items = match.trim().split('\n');
-        const listItems = items.map(item => {
-          const cleaned = item.replace(/^(\*|-|\+)\s+/, '');
-          return `<li>${cleaned}</li>`;
-        }).join('');
-        return `<ul>${listItems}</ul>`;
-      });
-      
-      // Ordered lists - fixed implementation
-      html = html.replace(/(?:^|\n)(\d+)\.\s+(.*(?:\n(?!\n).*)*)/g, (match, number, content) => {
-        const items = match.trim().split('\n');
-        const listItems = items.map(item => {
+      // Lists - simplified approach
+      // First handle ordered lists
+      html = html.replace(/(\d+\.\s+.*)(?:\n\d+\.\s+.*)*/g, (match) => {
+        const items = match.split('\n').map(item => {
           const cleaned = item.replace(/^\d+\.\s+/, '');
           return `<li>${cleaned}</li>`;
         }).join('');
-        return `<ol>${listItems}</ol>`;
+        return `<ol>${items}</ol>`;
       });
       
-      // Line breaks to paragraphs
-      html = html.replace(/\n\n/g, '</p><p>');
-      html = html.replace(/\n/g, '<br>');
+      // Then handle unordered lists
+      html = html.replace(/([\*\-+]\s+.*)(?:\n[\*\-+]\s+.*)*/g, (match) => {
+          const items = match.split('\n').map(item => {
+            const cleaned = item.replace(/^[\*\-+]\s+/, '');
+            return `<li>${cleaned}</li>`;
+          }).join('');
+          return `<ul>${items}</ul>`;
+        });
       
-      // Wrap in paragraph if not already wrapped in block element
-      if (!html.match(/^<(h|pre|ul|ol|blockquote|hr)/)) {
-        html = '<p>' + html + '</p>';
-      }
+      // Line breaks - but NO paragraph wrapping
+      html = html.replace(/\n/g, '<br>');
       
       return html;
     }

@@ -49,7 +49,7 @@ struktur erklären , dann ganz am ende gesrcipteter anfang
 # subagent - to retrieve condensed info
 
 
-### structure of YOUR answer
+### structure of YOUR answer -> nicht in conversation history
 you can run "subprocesses" in parallel, in addition to your normal answer (which has no brackets):
 <<save-token>> -> when you see too much clutter in conversation history, especially in tool command output
 <<challenge>>short summary here<<challenge>> -> user makes any kind of commitment to the future 
