@@ -13,7 +13,7 @@ RUN mkdir -p /llm/private/conversation_history
 
 
 WORKDIR /llm
-RUN 
+
 
 
 # Keep container running
