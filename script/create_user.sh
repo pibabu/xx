@@ -249,15 +249,6 @@ echo "📂 Configuration: $USER_DIR"
 echo "📂 Private Data: /llm/private (read-write)"
 echo "📂 Shared Data: /llm/shared (read-write)"
 echo ""
-echo "🔧 Management:"
-echo "   cd $USER_DIR"
-echo "   docker-compose logs -f"
-echo "   docker-compose restart"
-echo "   docker-compose down"
 echo ""
 echo "=============================================="
 
-
-
-#   docker exec -it $CONTAINER_NAME bash" -> er soll in container run data_private/
-### shared data wird nicht kopiert...er fragt nach, aber macht dann nichts
