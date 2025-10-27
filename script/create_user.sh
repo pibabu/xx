@@ -256,3 +256,5 @@ echo "   docker-compose restart"
 echo "   docker-compose down"
 echo ""
 echo "=============================================="
+
+### shared data wird nicht kopiert...er fragt nach, aber macht dann nichts
