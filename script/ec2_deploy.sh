@@ -262,4 +262,4 @@ log "  Test websocket: wscat -c wss://ey-ios.com/ws"
 exit 0
 
 
-# we need to run script in the end: /script/create_user.sh   with two parameters: name and job, we cant use same name twice
+# we need to run script in the end: /script/create_user.sh   with two parameters: name and job,with random name, max 5 characters

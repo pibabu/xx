@@ -13,7 +13,7 @@ class ConversationManager:
     
     Key responsibilities:
     1. Find and track user's Docker container by user_hash label
-    2. Load system prompt from container's /data_private/readme.md
+    2. Load system prompt from container's /llm/private/readme.md  # !!!
     3. Maintain conversation history (user/assistant/tool messages)
     4. Execute bash commands inside container via bash_tool
     5. Persist conversations to container storage
@@ -81,7 +81,7 @@ class ConversationManager:
         """
         print(f"🔧 Executing bash command: {command}")
         result = await self._exec(command)
-        print(f"✓ Command output: {result[:200]}...")  # Log first 200 chars
+        print(f"✓ Command output: {result[:200]}...")  # Log first 200 chars ##what does comment mean? where is logfile??our app output.explain concept here, what happens under hood
         return result
 
     # ----------------------------------------------------------------------
@@ -89,7 +89,7 @@ class ConversationManager:
     # ----------------------------------------------------------------------
     async def load_system_prompt(self) -> str:
         """
-        Load system prompt from /data_private/readme.md inside container.
+        Load system prompt from //readme.md inside container.
         Caches result to avoid repeated file reads.#
         """
         if self.system_prompt is None:

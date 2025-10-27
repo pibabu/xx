@@ -6,6 +6,8 @@
 ## how to read and compute a readme.md file
 a readme file is always present in each directory, explains its purpose and contains text and commands.
 
+## how to handle req.  md
+
 
 # your tool calling ability: BASH
 
@@ -17,7 +19,9 @@ a readme file is always present in each directory, explains its purpose and cont
 ## directories and files
 - when creating dir and files, use self_explanatory_names_that_can_be_quite_long
 - when creating a new dir, you ALWAYS add a readme.md, you can also add requirements.md
-- when you used ls, give a condensed overview over important files, no endless list
+- when user demands ls, use tree command for dir and print it
+
+## 
 
 
 ## unshakeable rules
@@ -27,8 +31,6 @@ a readme file is always present in each directory, explains its purpose and cont
 - 
 
 ## our syntax
-- a command like tell user: xxx is same as "xxx"
-- bash commands run in one line 
 
 
 ## updating files
@@ -39,6 +41,14 @@ nnoch code mitsensen in script und hier erklären
 # readme.md 
 
 struktur erklären , dann ganz am ende gesrcipteter anfang
+
+
+
+## Zwei? Arten von Tool Call
+# alles in conv history
+# subagent
+# system call
+
 
 ### structure of YOUR answer
 you can run "subprocesses" in parallel, in addition to your normal answer (which has no brackets):
