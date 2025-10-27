@@ -6,6 +6,11 @@
 set -u  # Exit on undefined variables
 
 # ==========================================
+# TRIGGER FLAG - Set to true to enable user creation
+# ==========================================
+CREATE_RANDOM_USER=true  # Change to false to disable user creation
+
+# ==========================================
 # CONFIGURATION 
 # ==========================================
 APP_DIR="/home/ec2-user/fastapi-app"
@@ -24,6 +29,7 @@ log() {
 
 log "=========================================="
 log "Starting deployment process"
+log "User creation trigger: $CREATE_RANDOM_USER"
 log "=========================================="
 
 # ==========================================
@@ -243,43 +249,52 @@ else
     log "Nginx not found (expected if running elsewhere)"
 fi
 
-
-# ==========================================
-# STEP 11: Create Random User
-# ==========================================
-log "Step 11: Creating random user"
-
-set +e
-
-if [ -f "$APP_DIR/script/create_user.sh" ]; then
-    # Generate random 5-character name (alphanumeric lowercase)
-    RANDOM_NAME=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 5 | head -n 1)
-    RANDOM_JOB="developer"  # Change this to desired job title
-    
-    log "Running create_user.sh with name: $RANDOM_NAME, job: $RANDOM_JOB"
-    
-    # Create logs directory if it doesn't exist
-    mkdir -p "$APP_DIR/logs"
-    
-    # Run script and capture output to both deployment log and separate file
-    SCRIPT_LOG="$APP_DIR/logs/create_user_$(date '+%Y%m%d_%H%M%S').log"
-    
-    bash "$APP_DIR/script/create_user.sh" "$RANDOM_NAME" "$RANDOM_JOB" 2>&1 | tee -a "$LOG_FILE" "$SCRIPT_LOG"
-    
-    if [ $? -eq 0 ]; then
-        log "✓ User creation script completed successfully"
-        log "   Script output saved to: $SCRIPT_LOG"
-    else
-        log "⚠ User creation script returned non-zero exit code (continuing anyway)"
-        log "   Check logs at: $SCRIPT_LOG"
-    fi
-else
-    log "⚠ create_user.sh not found at $APP_DIR/script/create_user.sh"
-fi
-
 set -e
 
+# ==========================================
+# STEP 11: Create Random User (if enabled)
+# ==========================================
+log "Step 11: Checking user creation trigger"
 
+if [ "$CREATE_RANDOM_USER" = true ]; then
+    log "User creation is ENABLED"
+    
+    set +e
+    
+    if [ -f "$APP_DIR/script/create_user.sh" ]; then
+        # Generate random 5-character name (alphanumeric lowercase)
+        RANDOM_NAME=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 5 | head -n 1)
+        RANDOM_JOB="developer"  # Change this to desired job title
+        
+        log "Running create_user.sh with name: $RANDOM_NAME, job: $RANDOM_JOB"
+        
+        # Create logs directory if it doesn't exist
+        mkdir -p "$APP_DIR/logs"
+        
+        # Run script and capture output to both deployment log and separate file
+        SCRIPT_LOG="$APP_DIR/logs/create_user_$(date '+%Y%m%d_%H%M%S').log"
+        
+        # Run script with 'no' as default answer to shared data question
+        # Redirect output to both deployment log and script-specific log
+        {
+            echo "no" | bash "$APP_DIR/script/create_user.sh" "$RANDOM_NAME" "$RANDOM_JOB"
+        } 2>&1 | tee -a "$SCRIPT_LOG" | tee -a "$LOG_FILE"
+        
+        if [ $? -eq 0 ]; then
+            log "✓ User creation script completed successfully"
+            log "   Script output saved to: $SCRIPT_LOG"
+        else
+            log "⚠ User creation script returned non-zero exit code (continuing anyway)"
+            log "   Check logs at: $SCRIPT_LOG"
+        fi
+    else
+        log "⚠ create_user.sh not found at $APP_DIR/script/create_user.sh"
+    fi
+    
+    set -e
+else
+    log "User creation is DISABLED (skipping)"
+fi
 
 # ==========================================
 # DEPLOYMENT COMPLETE
@@ -289,16 +304,14 @@ log "=========================================="
 log "Deployment completed successfully!"
 log "=========================================="
 log "Application directory: $APP_DIR"
-log "Application logs: /var/log/fastapi.log"
+log "Application logs: $APP_DIR/logs/fastapi.log"
+log "Deployment logs: $LOG_FILE"
 log ""
 log "Useful commands:"
-log "  View app logs: tail -f /var/log/fastapi.log"
+log "  View app logs: tail -f $APP_DIR/logs/fastapi.log"
 log "  View nginx logs: sudo tail -f /var/log/nginx/error.log"
 log "  Check process: pgrep -f 'uvicorn app:app'"
 log "  Stop app: pkill -f 'uvicorn app:app'"
 log "  Test websocket: wscat -c wss://ey-ios.com/ws"
 
 exit 0
-
-
-# we need to run script in the end: /script/create_user.sh   with two parameters: name and job,with random name, max 5 characters

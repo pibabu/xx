@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ey-IOS</title>
-    <link rel="icon" type="image/png" href="favicon.png">
+    <!-- Comprehensive favicon support -->
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./favicon.png">
+    <link rel="shortcut icon" href="./favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -38,6 +41,7 @@
         Reconnect
       </button>
     </div>
+    
     <!-- Chat history container -->
     <div id="chat-history" class="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
       <div class="text-gray-500 text-sm">
@@ -60,13 +64,16 @@
       </div>
     </div>
   </div>
+
   <style>
+    /* Custom scrollbar */
     .scrollbar-hide::-webkit-scrollbar {
       width: 3px;
     }
     .scrollbar-hide::-webkit-scrollbar-thumb {
       background: rgba(74, 222, 128, 0.2);
       border-radius: 10px;
+      transition: background 0.2s;
     }
     .scrollbar-hide::-webkit-scrollbar-thumb:hover {
       background: rgba(74, 222, 128, 0.3);
@@ -79,6 +86,7 @@
       scrollbar-width: thin;
       scrollbar-color: rgba(74, 222, 128, 0.2) transparent;
     }
+    
     /* Markdown styles */
     .markdown-content h1 { font-size: 1.5em; font-weight: bold; margin: 0.5em 0; color: #4ade80; }
     .markdown-content h2 { font-size: 1.3em; font-weight: bold; margin: 0.5em 0; color: #4ade80; }
@@ -95,17 +103,31 @@
     .markdown-content a { color: #60a5fa; text-decoration: underline; }
     .markdown-content hr { border: 0; border-top: 1px solid #374151; margin: 1em 0; }
     .markdown-content p { margin: 0.5em 0; }
+    
+    /* Cursor animation */
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+    .terminal-cursor {
+      animation: blink 1s infinite;
+    }
   </style>
 
   <script>
+    const DEBUG = true;
+    const log = (...args) => DEBUG && console.log(...args);
+    
     let ws = null;
     let currentMessageId = null;
+    let reconnectAttempts = 0;
+    let maxReconnectAttempts = 5;
+    let reconnectDelay = 1000;
 
-    // DEBUG: Log everything to console
-    console.log('🚀 Script initialized');
-    console.log('📍 Current URL:', window.location.href);
+    log('🚀 Script initialized');
+    log('📍 Current URL:', window.location.href);
 
-    // Markdown parser
+    // Improved Markdown parser
     function parseMarkdown(text) {
       let html = text;
       
@@ -122,37 +144,31 @@
       html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
       html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>');
       
-      // Bold
+      // Bold and italic
       html = html.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
       html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
-      
-      // Italic
       html = html.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
       html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
       
       // Links
-      html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+      html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
       
       // Blockquotes
       html = html.replace(/^> (.*$)/gm, '<blockquote>$1</blockquote>');
       
       // Horizontal rules
-      html = html.replace(/^---$/gm, '<hr>');
-      html = html.replace(/^\*\*\*$/gm, '<hr>');
+      html = html.replace(/^(---|\*\*\*)$/gm, '<hr>');
       
-      // Unordered lists
-      html = html.replace(/^\* (.*$)/gm, '<li>$1</li>');
-      html = html.replace(/^- (.*$)/gm, '<li>$1</li>');
+      // Lists
+      html = html.replace(/^[*-] (.*$)/gm, '<li>$1</li>');
+      html = html.replace(/^\d+\. (.*$)/gm, '<li>$1</li>');
       html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
       
-      // Ordered lists
-      html = html.replace(/^\d+\. (.*$)/gm, '<li>$1</li>');
-      
-      // Line breaks to paragraphs
+      // Line breaks
       html = html.replace(/\n\n/g, '</p><p>');
       html = html.replace(/\n/g, '<br>');
       
-      // Wrap in paragraph if not already wrapped in block element
+      // Wrap in paragraph if not already wrapped
       if (!html.match(/^<(h|pre|ul|ol|blockquote|hr)/)) {
         html = '<p>' + html + '</p>';
       }
@@ -160,9 +176,7 @@
       return html;
     }
 
-    // Update connection status UI
     function updateStatus(connected) {
-      console.log('🔄 updateStatus called:', connected);
       const indicator = document.getElementById('status-indicator');
       const statusText = document.getElementById('status-text');
       const reconnectBtn = document.getElementById('reconnect-btn');
@@ -174,284 +188,231 @@
         reconnectBtn.classList.add('hidden');
         input.disabled = false;
         input.placeholder = '_';
-        console.log('✅ Status set to CONNECTED');
+        reconnectAttempts = 0;
+        log('✅ Status: CONNECTED');
       } else {
         indicator.className = 'w-2 h-2 rounded-full bg-terminal-error';
         statusText.textContent = 'Disconnected';
+        if (reconnectAttempts < maxReconnectAttempts) {
+          statusText.textContent += ` (Retrying in ${reconnectDelay/1000}s)`;
+        }
         reconnectBtn.classList.remove('hidden');
         input.disabled = true;
         input.placeholder = 'Disconnected...';
-        console.log('❌ Status set to DISCONNECTED');
+        log('❌ Status: DISCONNECTED');
       }
     }
 
-    // Append message to chat history
     function appendMessage(role, content, messageId = null) {
-      console.log('💬 appendMessage:', { role, content: content.substring(0, 50), messageId });
       const chatHistory = document.getElementById('chat-history');
       
       if (messageId && document.getElementById(messageId)) {
-        // Update existing message
         const existingMsg = document.getElementById(messageId);
+        const contentSpan = existingMsg.querySelector('.message-content');
         if (role === 'ai') {
-          existingMsg.querySelector('.message-content').innerHTML = parseMarkdown(content);
+          contentSpan.innerHTML = parseMarkdown(content);
         } else {
-          existingMsg.querySelector('.message-content').textContent = content;
+          contentSpan.textContent = content;
         }
       } else {
-        // Create new message
         const messageDiv = document.createElement('div');
         messageDiv.id = messageId || `msg-${Date.now()}`;
         
-        if (role === 'user') {
-          messageDiv.innerHTML = `
-            <div class="flex items-start space-x-2">
-              <span class="text-terminal-prompt">You:</span>
-              <span class="message-content text-terminal-input">${escapeHtml(content)}</span>
-            </div>
-          `;
-        } else if (role === 'ai') {
-          messageDiv.innerHTML = `
-            <div class="flex items-start space-x-2">
-              <span class="text-terminal-prompt">LLM:</span>
-              <span class="message-content markdown-content text-gray-300">${parseMarkdown(content)}</span>
-            </div>
-          `;
-        } else if (role === 'tool') {
-          messageDiv.innerHTML = `
-            <div class="flex items-start space-x-2">
-              <span class="text-yellow-500">🔧</span>
-              <span class="message-content text-yellow-400">${escapeHtml(content)}</span>
-            </div>
-          `;
-        } else {
-          messageDiv.innerHTML = `
-            <div class="text-gray-500 text-sm">
-              <span class="text-terminal-prompt">System:</span>
-              <span class="message-content">${escapeHtml(content)}</span>
-            </div>
-          `;
-        }
+        const roleConfig = {
+          user: {
+            prefix: 'You:',
+            class: 'text-terminal-input',
+            escape: true
+          },
+          ai: {
+            prefix: 'LLM:',
+            class: 'markdown-content text-gray-300',
+            escape: false
+          },
+          tool: {
+            prefix: '🔧',
+            class: 'text-yellow-400',
+            escape: true
+          },
+          system: {
+            prefix: 'System:',
+            class: '',
+            escape: true
+          }
+        };
+        
+        const config = roleConfig[role] || roleConfig.system;
+        
+        messageDiv.innerHTML = `
+          <div class="flex items-start space-x-2">
+            <span class="text-terminal-prompt">${config.prefix}</span>
+            <span class="message-content ${config.class}">${config.escape ? escapeHtml(content) : parseMarkdown(content)}</span>
+          </div>
+        `;
         
         chatHistory.appendChild(messageDiv);
       }
       
-      chatHistory.scrollTop = chatHistory.scrollHeight;
+      // Smooth scroll to bottom
+      chatHistory.scrollTo({ top: chatHistory.scrollHeight, behavior: 'smooth' });
     }
 
-    // Escape HTML to prevent XSS
     function escapeHtml(text) {
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
     }
 
-    // Connect to WebSocket server
-    function connectWebSocket() {
-      console.log('🔌 connectWebSocket() called');
-      
-      // Check if already connected
-      if (ws) {
-        console.log('📊 Existing WebSocket state:', ws.readyState, {
-          0: 'CONNECTING',
-          1: 'OPEN',
-          2: 'CLOSING',
-          3: 'CLOSED'
-        }[ws.readyState]);
-      }
-      
+    function connectWebSocket(autoReconnect = false) {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        console.log('⚠️ Already connected, skipping');
+        log('⚠️ Already connected');
         return;
       }
       
       if (ws && ws.readyState === WebSocket.CONNECTING) {
-        console.log('⚠️ Connection in progress, skipping');
+        log('⚠️ Connection in progress');
         return;
       }
 
-      appendMessage('system', 'Connecting to server...');
-      
       const urlParams = new URLSearchParams(window.location.search);
       const userHash = urlParams.get('hash');
       
-      console.log('🔑 User hash from URL:', userHash);
-      
       if (!userHash) {
-        console.error('❌ No user hash provided!');
-        alert('No user hash provided! Add ?hash=YOUR_HASH to URL');
+        const errorMsg = 'No user hash provided! Add ?hash=YOUR_HASH to URL';
+        log('❌', errorMsg);
+        if (!autoReconnect) alert(errorMsg);
         return;
+      }
+      
+      if (!autoReconnect) {
+        appendMessage('system', 'Connecting to server...');
       }
       
       const wsUrl = `wss://ey-ios.com/ws/${userHash}`;
-      console.log('🌐 Connecting to:', wsUrl);
+      log('🌐 Connecting to:', wsUrl);
       
       try {
         ws = new WebSocket(wsUrl);
-        console.log('✨ WebSocket object created');
-      } catch (error) {
-        console.error('❌ Failed to create WebSocket:', error);
-        appendMessage('system', `Failed to create connection: ${error.message}`);
-        return;
-      }
-
-      ws.onopen = () => {
-        console.log('🎉 WebSocket CONNECTED!');
-        appendMessage('system', 'Connected to chat server');
-        updateStatus(true);
-      };
-
-      ws.onmessage = function(event) {
-        console.log('📨 Message received:', event.data);
         
-        try {
-          const data = JSON.parse(event.data);
-          console.log('📦 Parsed data:', data);
+        ws.onopen = () => {
+          log('🎉 WebSocket CONNECTED!');
+          appendMessage('system', 'Connected to chat server');
+          updateStatus(true);
+        };
+
+        ws.onmessage = function(event) {
+          try {
+            const data = JSON.parse(event.data);
+            
+            switch(data.type) {
+              case 'start':
+                currentMessageId = `msg-${Date.now()}`;
+                appendMessage('ai', '', currentMessageId);
+                break;
+              case 'token':
+                const existingMsg = document.getElementById(currentMessageId);
+                if (existingMsg) {
+                  existingMsg.querySelector('.message-content').textContent += data.content;
+                }
+                break;
+              case 'end':
+                const msg = document.getElementById(currentMessageId);
+                if (msg) {
+                  const contentSpan = msg.querySelector('.message-content');
+                  contentSpan.innerHTML = parseMarkdown(contentSpan.textContent);
+                }
+                currentMessageId = null;
+                break;
+              case 'error':
+                appendMessage('system', `Error: ${data.message}`);
+                break;
+              default:
+                log('⚠️ Unknown message type:', data.type);
+            }
+          } catch (error) {
+            log('❌ Failed to parse message:', error);
+          }
+        };
+
+        ws.onerror = (error) => {
+          log('❌ WebSocket ERROR:', error);
+          if (!autoReconnect) {
+            appendMessage('system', 'Connection error occurred');
+          }
+        };
+
+        ws.onclose = (event) => {
+          log('🔌 WebSocket CLOSED:', { code: event.code, reason: event.reason, wasClean: event.wasClean });
+          updateStatus(false);
+          currentMessageId = null;
           
-          if (data.type === 'start') {
-            console.log('🟢 AI message START');
-            currentMessageId = `msg-${Date.now()}`;
-            appendMessage('ai', '', currentMessageId);
-          } 
-          else if (data.type === 'token') {
-            console.log('📝 Token received:', data.content);
-            const existingMsg = document.getElementById(currentMessageId);
-            if (existingMsg) {
-              const contentSpan = existingMsg.querySelector('.message-content');
-              contentSpan.textContent += data.content;
-            } else {
-              console.error('❌ Message element not found:', currentMessageId);
-            }
+          // Auto-reconnect with exponential backoff
+          if (reconnectAttempts < maxReconnectAttempts && autoReconnect) {
+            reconnectAttempts++;
+            log(`🔄 Auto-reconnecting in ${reconnectDelay}ms (attempt ${reconnectAttempts}/${maxReconnectAttempts})`);
+            setTimeout(() => connectWebSocket(true), reconnectDelay);
+            reconnectDelay = Math.min(reconnectDelay * 2, 10000);
           }
-          else if (data.type === 'end') {
-            console.log('🔴 AI message END');
-            // Parse the accumulated text as markdown
-            const existingMsg = document.getElementById(currentMessageId);
-            if (existingMsg) {
-              const contentSpan = existingMsg.querySelector('.message-content');
-              const text = contentSpan.textContent;
-              contentSpan.innerHTML = parseMarkdown(text);
-            }
-            currentMessageId = null;
-          }
-          else if (data.type === 'error') {
-            console.error('❌ Error from server:', data.message);
-            appendMessage('system', `Error: ${data.message}`);
-          }
-          else {
-            console.warn('⚠️ Unknown message type:', data.type);
-          }
-        } catch (error) {
-          console.error('❌ Failed to parse message:', error);
+        };
+        
+      } catch (error) {
+        log('❌ Failed to create WebSocket:', error);
+        if (!autoReconnect) {
+          appendMessage('system', `Failed to create connection: ${error.message}`);
         }
-      };
-
-      ws.onerror = (error) => {
-        console.error('❌ WebSocket ERROR:', error);
-        appendMessage('system', 'Connection error occurred');
-      };
-
-      ws.onclose = (event) => {
-        console.log('🔌 WebSocket CLOSED:', {
-          code: event.code,
-          reason: event.reason,
-          wasClean: event.wasClean
-        });
-        appendMessage('system', 'Connection closed');
-        updateStatus(false);
-        currentMessageId = null;
-      };
+      }
     }
 
-    // Send message via WebSocket
     function sendMessage() {
-      console.log('📤 sendMessage() called');
-      
       const input = document.getElementById('user-input');
       const message = input.value.trim();
       
-      console.log('📝 Input value:', message);
-      console.log('📝 Message length:', message.length);
-      
-      if (!message) {
-        console.log('⚠️ Message is empty, returning');
-        return;
-      }
-      
-      console.log('🔍 Checking WebSocket state...');
-      console.log('  ws exists:', !!ws);
-      console.log('  ws.readyState:', ws ? ws.readyState : 'N/A');
-      console.log('  WebSocket.OPEN:', WebSocket.OPEN);
+      if (!message) return;
       
       if (!ws || ws.readyState !== WebSocket.OPEN) {
-        console.error('❌ WebSocket not open!');
         appendMessage('system', 'Not connected. Click Reconnect to try again.');
         return;
       }
       
-      console.log('✅ WebSocket is open, sending message...');
-      
-      const payload = JSON.stringify({ message });
-      console.log('📦 Sending payload:', payload);
-      
       try {
-        ws.send(payload);
-        console.log('✅ Message sent successfully!');
+        ws.send(JSON.stringify({ message }));
         appendMessage('user', message);
         input.value = '';
       } catch (error) {
-        console.error('❌ Failed to send message:', error);
         appendMessage('system', `Failed to send: ${error.message}`);
       }
     }
 
-    // Handle input key events
     function handleInputKey(event) {
-      console.log('⌨️ Key pressed:', event.key);
-      if (event.key === 'Enter') {
-        console.log('↩️ Enter key detected, calling sendMessage()');
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
         sendMessage();
       }
     }
 
-    // Auto-connect and focus input on page load
+    // Initialize
     window.addEventListener('load', () => {
-      console.log('🌍 Window LOAD event fired');
       const input = document.getElementById('user-input');
       input.disabled = false;
       input.focus();
-      console.log('🔌 Calling connectWebSocket() from load event');
       connectWebSocket();
     });
 
-    // Reconnect and focus input on window focus if disconnected
     window.addEventListener('focus', () => {
-      console.log('👁️ Window FOCUS event fired');
       if (!ws || ws.readyState === WebSocket.CLOSED) {
-        console.log('🔌 Reconnecting...');
         connectWebSocket();
       }
-      const input = document.getElementById('user-input');
-      input.focus();
+      document.getElementById('user-input').focus();
     });
 
-    // Enable input when typing
     document.addEventListener('keydown', (e) => {
       const input = document.getElementById('user-input');
-      if (document.activeElement !== input && e.key.length === 1) {
-        console.log('🎯 Focusing input from keydown');
+      if (document.activeElement !== input && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
         input.focus();
       }
     });
 
-    // Debug info on startup
-    console.log('🔧 Debug mode enabled');
-    console.log('📋 WebSocket states:', {
-      CONNECTING: WebSocket.CONNECTING,
-      OPEN: WebSocket.OPEN,
-      CLOSING: WebSocket.CLOSING,
-      CLOSED: WebSocket.CLOSED
-    });
+    log('🔧 Terminal ready');
   </script>
 </body>
 </html>
