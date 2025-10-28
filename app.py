@@ -1,9 +1,10 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse
 from pathlib import Path
 import json
 import subprocess
-from services.llm import process_message
+from typing import Optional
+from services.llm_chat import process_message
 from services.conversation_manager import ConversationManager, BASH_TOOL_SCHEMA
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -108,7 +109,27 @@ async def websocket_endpoint(websocket: WebSocket, user_hash: str):
             await websocket.close()
         except:
             pass
-        
+
+
+@app.post("/api/agent/run")
+async def run_agent_task(
+    user_hash: str,
+    task: str,
+    system_prompt: Optional[str] = None
+):
+    """
+    Run an isolated agent task that can use tools internally.
+    Returns only the final result.
+    """
+    if not container_exists_by_hash(user_hash):
+        raise HTTPException(404, "Container not found")
+    
+    cm = ConversationManager(user_hash=user_hash)
+    result = await cm.run_agent_task(task, system_prompt)
+    
+    return {"result": result}
+
+
         
 @app.get("/health")
 async def health_check():

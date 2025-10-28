@@ -3,8 +3,9 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
+from services.bash_tool import BASH_TOOL_SCHEMA, execute_bash_command
+from services.subagent_manager import SubAgentManager
 
-from services.bash_tool import execute_bash_command 
 
 
 class ConversationManager:

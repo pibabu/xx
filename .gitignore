@@ -2,3 +2,5 @@ __pycache__/app.cpython-312.pyc
 services/__pycache__/llm.cpython-312.pyc
 .env
 cpython
+__pycache__
+Scripts
