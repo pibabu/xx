@@ -271,8 +271,8 @@ if [ "$CREATE_RANDOM_USER" = true ]; then
         # Create logs directory if it doesn't exist
         mkdir -p "$APP_DIR/logs"
         
-        # Run script and capture output to both deployment log and separate file  #thats time??:create_user_20251027_190538.lo #just create_user_NAME
-        SCRIPT_LOG="$APP_DIR/logs/create_user_$(date '+%Y%m%d_%H%M%S').log"
+        # Run script and capture output to both deployment log and separate file 
+        SCRIPT_LOG="$APP_DIR/logs/create_user_$RANDOM_NAME.log"
         
         # Run script with 'no' as default answer to shared data question
         # Redirect output to both deployment log and script-specific log
