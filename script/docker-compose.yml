@@ -6,34 +6,33 @@ services:
     container_name: "{{CONTAINER_NAME}}"
     hostname: "{{CONTAINER_NAME}}"
     
-    # Start in private data directory
     working_dir: /llm/private
     
-    # Volume mounts - shared is now read-write
     volumes:
       - "{{PRIVATE_VOLUME}}:/llm/private"
       - shared_data:/llm/shared:rw
     
     restart: unless-stopped
     
-    # Environment variables available inside container
     environment:
       - CONTAINER_NAME={{CONTAINER_NAME}}
       - TAGS={{TAGS}}
       - PRIVATE_DATA_PATH=/llm/private
       - SHARED_DATA_PATH=/llm/shared
+      - API_HOST=host.docker.internal
+      - API_PORT=8000
     
-    # Labels for container metadata
     labels:
       - "user.name={{CONTAINER_NAME}}"
       - "user.tags={{TAGS}}"
       - "user_hash={{USER_HASH}}"
     
-    
     networks:
       - user_shared_network
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     
-    # Health check
     healthcheck:
       test: ["CMD-SHELL", "test -d /llm/private && test -d /llm/shared"]
       interval: 30s
@@ -51,11 +50,3 @@ volumes:
   
   shared_data:
     external: true
-
-# nötig für container -> host kommunikation
-
-    # #extra_hosts:
-    #   - "host.docker.internal:host-gateway"
-    # environment:
-    #   - API_HOST=host.docker.internal
-    #   - API_PORT=8000
