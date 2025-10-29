@@ -15,3 +15,4 @@ runonetimellm() {
             '{prompt: $prompt, system_prompt: $system}'
         )" | jq -r '.result'
 }
+###mit bash
