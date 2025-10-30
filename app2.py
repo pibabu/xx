@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Literal
 
-router = APIRouter(prefix="/api/conversation", tags=["conversation"])
+app = APIRouter(prefix="/api/conversation", tags=["conversation"])
 
 class MessageEdit(BaseModel):
     role: Literal["user", "assistant", "tool"]
@@ -26,7 +26,7 @@ async def edit_conversation(request: ConversationEditRequest):
     - remove_last: Delete last N messages
     """
     try:
-        cm = conversation_managers.get(request.user_hash)
+        cm = conversation_manager.get(request.user_hash)
         if not cm:
             raise HTTPException(404, "Conversation not found")
         
