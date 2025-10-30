@@ -27,8 +27,8 @@ async def _stream_openai_response(cm: ConversationManager, websocket, depth: int
     messages = await cm.get_messages()
     
     # Prevent infinite loops
-    if depth > 3:
-        error_msg = "Error: Too many tool calls (max 3)"
+    if depth > 5:
+        error_msg = "Error: Too many tool calls (max 5)"
         await websocket.send_json({"type": "error", "message": error_msg})
         return error_msg
     
