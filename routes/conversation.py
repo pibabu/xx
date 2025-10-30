@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Literal
+from typing import List, Optional, Literal
+from services.conversation_manager import ConversationManager
 
-app = APIRouter(prefix="/api/conversation", tags=["conversation"])
+router = APIRouter(prefix="/api/conversation", tags=["conversation"])
 
 class MessageEdit(BaseModel):
     role: Literal["user", "assistant", "tool"]
@@ -14,7 +15,7 @@ class ConversationEditRequest(BaseModel):
     count: Optional[int] = Field(1, ge=1, le=20, description="Number of turns/messages to affect")
     new_messages: Optional[List[MessageEdit]] = Field(None, description="New messages for replace/inject")
 
-@app.post("/edit")
+@router.post("/edit")
 async def edit_conversation(request: ConversationEditRequest):
     """
     Modify conversation history.
@@ -26,9 +27,7 @@ async def edit_conversation(request: ConversationEditRequest):
     - remove_last: Delete last N messages
     """
     try:
-        cm = conversation_manager.get(request.user_hash)
-        if not cm:
-            raise HTTPException(404, "Conversation not found")
+        cm = ConversationManager(request.user_hash)
         
         if request.action == "clear":
             cm.messages.clear()
@@ -42,11 +41,9 @@ async def edit_conversation(request: ConversationEditRequest):
             if not request.new_messages:
                 raise HTTPException(400, "new_messages required for replace_last")
             
-            # Remove last N messages (count = number of messages, not turns)
             messages_to_remove = min(request.count, len(cm.messages))
             cm.messages = cm.messages[:-messages_to_remove] if messages_to_remove > 0 else cm.messages
             
-            # Add new messages
             for msg in request.new_messages:
                 cm.messages.append({"role": msg.role, "content": msg.content})
             
@@ -62,7 +59,6 @@ async def edit_conversation(request: ConversationEditRequest):
             if not request.new_messages:
                 raise HTTPException(400, "new_messages required for inject")
             
-            # Add messages to the end
             for msg in request.new_messages:
                 cm.messages.append({"role": msg.role, "content": msg.content})
             
@@ -91,3 +87,11 @@ async def edit_conversation(request: ConversationEditRequest):
         raise
     except Exception as e:
         raise HTTPException(500, f"Failed to edit conversation: {str(e)}")
+
+@router.post("/export")
+async def export_conversation(request: dict):
+    """Return current conversation state for bash to save."""
+    user_hash = request["user_hash"]
+    conv = ConversationManager(user_hash)
+    
+    return conv.get_conversation_data()

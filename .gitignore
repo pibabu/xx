@@ -4,3 +4,4 @@ services/__pycache__/llm.cpython-312.pyc
 cpython
 __pycache__
 Scripts
+.venv

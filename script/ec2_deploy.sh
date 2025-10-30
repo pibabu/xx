@@ -64,7 +64,7 @@ log "Files copied and permissions set successfully"
 
 
 # ==========================================
-# STEP 3: Create .env from AWS Systems Manager Parameter Store
+# STEP 3: Create .env from AWS Systems Manager Parameter Store  
 # ==========================================
 
 
