@@ -12,23 +12,12 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your domains: ["https://yourdomain.com"]
+    allow_origins=["https://ey-ios.com"],  
     allow_credentials=True,
-    allow_methods=["*"],  # Or specify: ["GET", "POST", "PUT", "DELETE"]
-    allow_headers=["*"],  # Or specify headers you need
+    allow_methods=["*"], 
+    allow_headers=["*"],  
 )
 
-
-# @app.get("/")
-# async def serve_frontend():
-#     html_file = Path("index.html")
-
-#     if html_file.exists():
-#         return HTMLResponse(content=html_file.read_text())
-#     else:
-#         return HTMLResponse(
-#             content="<h1>Error: index.html not found</h1>", status_code=404
-#         )
 
 @app.get("/")
 async def get():
@@ -111,27 +100,8 @@ async def websocket_endpoint(websocket: WebSocket, user_hash: str):
             pass
 
 
-@app.post("/api/llm/quick")
-async def quick_llm_response(request: QuickLLMRequest):
-    """
-    Single LLM call, returns text response only.
-    No conversation history, no complexity.
-    """
-    try:
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": request.system_prompt},
-                {"role": "user", "content": request.prompt}
-            ],
-            temperature=0.7,
-        )
-        
-        result = response.choices[0].message.content or ""
-        return {"result": result}
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.post("/api/llm/quick")   ####
+
 
 
 @app.post("/api/conversation/export")
