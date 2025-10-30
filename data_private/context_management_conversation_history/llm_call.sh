@@ -1,4 +1,4 @@
-export API_BASE="${API_BASE:-http://localhost:8000}"
+export API_BASE="${API_BASE}"
 export USER_HASH="${USER_HASH:-unknown}"
 
 
