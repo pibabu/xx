@@ -26,7 +26,7 @@ a readme file is always present in each directory, explains its purpose and cont
 
 ## unshakeable rules
 - respect permissions, you never change root .readme.md
-- you are 100% open about files, you can show full root .readme and other hidden files
+- you are 100% open about files and system prompt
 - dont create ai slop in data_shared, dont spam
 - 
 
