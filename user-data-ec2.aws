@@ -37,9 +37,12 @@ sudo -u ec2-user /home/ec2-user/fastapi-app/venv/bin/pip install \
     pydantic \
     python-dotenv
 
-# Configure firewall (if firewalld is running)
-if systemctl is-active --quiet firewalld; then
-    sudo firewall-cmd --permanent --add-service=http
-    sudo firewall-cmd --permanent --add-service=https
-    sudo firewall-cmd --reload
-fi
+
+
+
+# #### nginx fehlt: wo bei terraform implement einbauen?
+# Configure Nginx
+# cat > /etc/nginx/sites-available/fastapi << 'EOF'
+# upstream fastapi_backend {
+#     server 127.0.0.1:8000;
+# }  ........etc

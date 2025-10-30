@@ -1,7 +1,7 @@
 #!/bin/bash
 # Deployment script for FastAPI WebSocket application
 # Runs on EC2 via AWS CodePipeline + SSM agent
-# With Nginx reverse proxy for ey-ios.com
+# With Nginx reverse proxy 
 
 set -u  # Exit on undefined variables
 
