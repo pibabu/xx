@@ -15,3 +15,6 @@ save_token: llm tells user what gets deleted and asks permission
 
 # cron jobs in this conversation:
 git: 
+
+
+<<inject stuff>>   yadayada  <<inject stuff>>

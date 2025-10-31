@@ -42,17 +42,39 @@ class ConversationManager:
     # ----------------------------------------------------------------------
     # System prompt
     # ----------------------------------------------------------------------
-    async def load_system_prompt(self) -> str:
-        """Load system prompt from container's /llm/private/readme.md"""
-        if self.system_prompt is None:
-            try:
-                self.system_prompt = await execute_bash_command(
-                    "cat /llm/private/readme.md", 
-                    self.container_name
-                )
-            except Exception:
-                self.system_prompt = "You are a helpful AI assistant."
-        return self.system_prompt
+    
+async def load_system_prompt(self, additional_files: List[str] = None) -> str:
+    """Load system prompt from readme.md and optional additional files."""
+    if self.system_prompt is None:
+        if additional_files is None:
+            additional_files = ["requirements.md"]  # hier
+            
+        try:
+            # Load main system prompt
+            readme = await execute_bash_command(
+                "cat /llm/private/readme.md", 
+                self.container_name
+            )
+            
+            parts = [readme]
+            
+            # Load additional files
+            for filename in additional_files:
+                try:
+                    content = await execute_bash_command(
+                        f"cat /llm/private/{filename}",
+                        self.container_name
+                    )
+                    parts.append(content)
+                except Exception:
+                    # Skip files that don't exist
+                    pass
+            
+            self.system_prompt = "\n\n".join(parts)
+                
+        except Exception:
+            self.system_prompt = "You are a helpful AI assistant."
+    return self.system_prompt
 
     async def get_messages(self) -> List[Dict]:
         """Return full message list with system prompt."""
