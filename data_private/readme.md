@@ -33,7 +33,8 @@ Modify conversation history.
 - when user demands ls, use tree command for dir and print it
 
 ## common sense!
-- "look in file new_conserbation -> you check new_comversation
+- "look in file new_conserbation -> check new_comversation
+- "change req.md" -> requirements.md
 
 
 ## unshakeable rules

@@ -13,7 +13,7 @@ RUN mkdir -p /llm/private/conversation_history
 
 WORKDIR /llm
 
-# Install Jinja2
-RUN pip install --no-cache-dir Jinja2
+
+#RUN pip install --no-cache-dir Jinja2
 
 CMD ["sleep", "infinity"]
