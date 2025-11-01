@@ -80,16 +80,25 @@ fi
 # Setup private volume
 if docker volume inspect "$PRIVATE_VOLUME" &>/dev/null; then
     print_warning "Volume '$PRIVATE_VOLUME' already exists"
-    read -p "Recreate private volume? (yes/no): " confirm
+    
+    # Check if running interactively
+    if [ -t 0 ]; then
+        read -p "Recreate private volume? (yes/no): " confirm
+    else
+        # Non-interactive: always recreate for clean deployments
+        print_info "Non-interactive mode: forcing volume recreation"
+        confirm="yes"
+    fi
+    
     if [ "$confirm" = "yes" ]; then
+        print_info "Removing old volume..."
         docker volume rm "$PRIVATE_VOLUME" >/dev/null
         docker volume create "$PRIVATE_VOLUME" >/dev/null
+        print_success "New volume created"
     fi
 else
     docker volume create "$PRIVATE_VOLUME" >/dev/null
 fi
-
-
 
 
 # Seed private volume   ### warum sind noch sehr alte files in workdir??
