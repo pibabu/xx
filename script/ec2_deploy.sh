@@ -10,7 +10,7 @@ set -u  # Exit on undefined variables
 # ==========================================
 CREATE_RANDOM_USER=true  # Change to false to disable user creation
 
-# ==========================================
+# ========================================== 
 # CONFIGURATION 
 # ==========================================
 APP_DIR="/home/ec2-user/fastapi-app"
