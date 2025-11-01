@@ -1,3 +1,4 @@
+#!/bin/bash
 # Replace the last conversation turn(s) with new content
 # Usage: replace_last_turns.sh <count> <user_msg> <assistant_msg>
 export API_BASE="${API_BASE:-http://localhost:8000}"

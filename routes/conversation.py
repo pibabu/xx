@@ -88,10 +88,10 @@ async def edit_conversation(request: ConversationEditRequest):
     except Exception as e:
         raise HTTPException(500, f"Failed to edit conversation: {str(e)}")
 
-@router.post("/export")
-async def export_conversation(request: dict):
-    """Return current conversation state for bash to save."""
-    user_hash = request["user_hash"]
-    conv = ConversationManager(user_hash)
+# @router.post("/export")
+# async def export_conversation(request: dict):
+#     """Return current conversation state for bash to save."""
+#     user_hash = request["user_hash"]
+#     conv = ConversationManager(user_hash)
     
-    return conv.get_conversation_data()
+#     return conv.get_conversation_data()

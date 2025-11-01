@@ -1,5 +1,4 @@
 #!/bin/bash
-# /llm/bin/inject_context.sh
 # Inject context messages into conversation without actual back-and-forth
 # Useful for adding background info, priming, or "fake" conversation history
 export API_BASE="${API_BASE:-http://localhost:8000}"

@@ -133,10 +133,10 @@ class ConversationManager:
             "content": result
         })
 
-    def get_conversation_data(self) -> Dict:
-        """Return conversation data as dict (for external persistence)."""
-        return {
-            "user_hash": self.user_hash,
-            "timestamp": datetime.now().isoformat(),
-            "messages": self.messages
-        }
+    # def get_conversation_data(self) -> Dict:
+    #     """Return conversation data as dict (for external persistence)."""
+    #     return {
+    #         "user_hash": self.user_hash,
+    #         "timestamp": datetime.now().isoformat(),
+    #         "messages": self.messages
+    #     }
