@@ -18,38 +18,13 @@ provider "aws" {
   region = var.region
 }
 
-# Load order: IAM first, then SSM, then EC2.
-module "iam" {
-  source = "./"
-}
-
-module "ssm" {
-  source = "./"
-  depends_on = [module.iam]
-}
-
-module "ec2" {
-  source = "./"
-  depends_on = [module.ssm]
+variable "region" {
+  description = "AWS region to deploy resources"
+  type        = string
+  default     = "eu-central-1"
 }
 
 
-
-terraform {
-  required_version = ">= 1.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
-provider "aws" {
-  region = var.aws_region
-}
-
-# Data source (AWS concept: query existing resources)
 data "aws_ami" "amazon_linux_2023" {
   most_recent = true
   owners      = ["amazon"]
@@ -58,4 +33,13 @@ data "aws_ami" "amazon_linux_2023" {
     name   = "name"
     values = ["al2023-ami-*-x86_64"]
   }
+  
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+
+data "aws_availability_zones" "available" {
+  state = "available"
 }

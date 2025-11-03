@@ -56,27 +56,115 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   name = "${var.app_name}-ec2-profile"
   role = aws_iam_role.ec2_role.name
 }
-
-# ==========================================
-# CODEDEPLOY ROLE  ehhhhhhhhhhhh
-# ==========================================
-resource "aws_iam_role" "codedeploy_role" {
-  name = "${var.app_name}-codedeploy-role"
+# Trust policy: Allows EC2 service to assume this role
+data "aws_iam_policy_document" "ec2_assume_role" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
+#....vs.....
+# IAM Role for EC2 instances
+resource "aws_iam_role" "ec2_deploy_role" {
+  name               = "${var.app_name}-ec2-deploy-role"
+  assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
   
-  assume_role_policy = jsonencode({
+  tags = {
+    Name = "${var.app_name}-ec2-role"
+  }
+}
+
+# Policy 1: SSM Agent Permissions (for Session Manager access)
+resource "aws_iam_role_policy" "ssm_agent" {
+  name = "SSMAgentPermissions"
+  role = aws_iam_role.ec2_deploy_role.id
+  
+  policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "codedeploy.amazonaws.com"
+    Statement = [
+      {
+        Sid    = "AllowSSMAgentPermissions"
+        Effect = "Allow"
+        Action = [
+          "ssm:DescribeAssociation",
+          "ssm:GetDeployablePatchSnapshotForInstance",
+          "ssm:GetDocument",
+          "ssm:DescribeDocument",
+          "ssm:GetManifest",
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+          "ssm:ListAssociations",
+          "ssm:ListInstanceAssociations",
+          "ssm:PutInventory",
+          "ssm:PutComplianceItems",
+          "ssm:PutConfigurePackageResult",
+          "ssm:UpdateAssociationStatus",
+          "ssm:UpdateInstanceAssociationStatus",
+          "ssm:UpdateInstanceInformation"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowSSMChannelMessaging"
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowSSMLegacyMessaging"
+        Effect = "Allow"
+        Action = [
+          "ec2messages:AcknowledgeMessage",
+          "ec2messages:DeleteMessage",
+          "ec2messages:FailMessage",
+          "ec2messages:GetEndpoint",
+          "ec2messages:GetMessages",
+          "ec2messages:SendReply"
+        ]
+        Resource = "*"
       }
-    }]
+    ]
   })
 }
 
-# AWS managed policy has everything CodeDeploy needs
-resource "aws_iam_role_policy_attachment" "codedeploy" {
-  role       = aws_iam_role.codedeploy_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSCodeDeployRole"
+# Policy 2: S3 Access for CodePipeline Artifacts
+resource "aws_iam_role_policy" "s3_artifacts" {
+  name = "S3ArtifactAccess"
+  role = aws_iam_role.ec2_deploy_role.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowS3ArtifactGetObject"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:GetObjectVersion"
+        ]
+        Resource = [
+          "arn:aws:s3:::codepipeline-eu-central-1-*/*"
+        ]
+      }
+    ]
+  })
+}
+
+# Instance Profile: Links IAM role to EC2 instance
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "${var.app_name}-ec2-profile"
+  role = aws_iam_role.ec2_deploy_role.name
+  
+  tags = {
+    Name = "${var.app_name}-instance-profile"
+  }
 }
