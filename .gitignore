@@ -7,3 +7,4 @@ Scripts
 .venv
 favicon
 tfvars 
+variables.tf

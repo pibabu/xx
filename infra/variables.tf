@@ -17,7 +17,7 @@ variable "environment" {
 
 variable "instance_type" {
   type    = string
-  default = "t3.micro"  # Your current type
+  default = "t3.micro"  # free tier
 }
 
 variable "ssh_key_name" {
@@ -33,5 +33,5 @@ variable "github_repo" {
 variable "allowed_ssh_cidr" {
   description = "CIDR blocks allowed to SSH"
   type        = list(string)
-  default     = ["0.0.0.0/0"]  # RESTRICT IN PRODUCTION
+  default     = ["0.0.0.0/0"]  # recherchiere
 }

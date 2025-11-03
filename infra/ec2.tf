@@ -23,6 +23,6 @@ resource "aws_instance" "app_server" {
   # AWS tag: CodeDeploy finds instances by this
   tags = {
     Name        = "${var.app_name}-server"
-    Application = var.app_name  # CRITICAL for CodeDeploy
+    Application = var.app_name  # deployed auf alle Instancen mit Tag "fastapi_app" -> Name checken!!
   }
 }
