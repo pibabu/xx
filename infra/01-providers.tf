@@ -3,6 +3,7 @@ provider "aws" {
   region  = "eu-central-2"
 }
 
+
 terraform {
   required_version = ">= 1.0"
 
