@@ -101,7 +101,7 @@ else
 fi
 
 
-# Seed private volume   ### warum sind noch sehr alte files in workdir??
+# Seed private volume   
 if [ -d "$SEED_DATA_PRIVATE" ]; then
     print_info "Seeding private volume..."
     docker run --rm \
