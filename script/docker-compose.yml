@@ -21,7 +21,7 @@ services:
       - SHARED_DATA_PATH=/llm/shared
       - API_HOST=host.docker.internal
       - API_PORT=8000
-      - USER_HASH=${{USER_HASH}}
+      - USER_HASH={{USER_HASH}}
       - API_BASE=http://localhost:8000
     
     labels:

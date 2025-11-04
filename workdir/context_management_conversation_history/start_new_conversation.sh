@@ -1,5 +1,5 @@
 #!/bin/bash
-# /llm/bin/start_new_conversation.sh
+
 # Clear all conversation history and start fresh
 
 ### add: start new conversation + DIR readme or + parameter input 

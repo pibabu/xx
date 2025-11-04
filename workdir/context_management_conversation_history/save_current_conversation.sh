@@ -1,6 +1,9 @@
 #!/bin/bash
-export API_BASE="${API_BASE:-http://localhost:8000}"
+export API_BASE="http://host.docker.internal:8000"
 export USER_HASH="${USER_HASH:-unknown}"
+
+echo "Using USER_HASH=$USER_HASH"
+
 
 # Validate they exist
 if [ "$USER_HASH" = "unknown" ]; then

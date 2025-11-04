@@ -1,5 +1,5 @@
 #!/bin/bash
-export API_BASE="${API_BASE}"
+export API_BASE="http://host.docker.internal:8000"
 export USER_HASH="${USER_HASH:-unknown}"
 
 
