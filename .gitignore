@@ -7,7 +7,7 @@ Scripts
 .venv
 favicon
 tfvars 
-variables.tf
+
 
 
 # Local .terraform directories
