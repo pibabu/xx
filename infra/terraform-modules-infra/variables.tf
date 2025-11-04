@@ -9,10 +9,10 @@ variable "aws_region" {
 # ----------------------------------------------------------------
 
 
-variable "ssh_allowed_ip" {
-  type    = string
-  default = "88.72.142.87/32"
-}
+# variable "ssh_allowed_ip" {
+#   type    = string
+#   default = "88.72.142.87/32"
+# }
 
 
 

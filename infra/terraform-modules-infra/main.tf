@@ -16,7 +16,7 @@ module "ec2_instance_module" {
   ami            = "ami-0a5b0d219e493191b" # ami: aws linux machine
   instance_type  = "t3.micro"
   instance_name  = "fastapi"
-  ssh_allowed_ip = var.ssh_allowed_ip
+  #ssh_allowed_ip = var.ssh_allowed_ip
   tags           = local.common_tags
 }
 # module "parameter_store_module" {
