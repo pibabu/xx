@@ -6,4 +6,4 @@ output "instance_details" {
 }
 output "elastic_ip" {
   value = aws_eip.aws_instance_elastic_ip.public_ip
-}
+} 
