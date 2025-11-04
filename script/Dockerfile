@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     nano \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /llm/private/conversation_history
+
 
 WORKDIR /llm    
 ## checken: Workdir in dockerfile /llm ; in d-compose: llm/private 
