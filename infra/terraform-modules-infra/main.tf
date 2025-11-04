@@ -19,22 +19,21 @@ module "ec2_instance_module" {
   ssh_allowed_ip = var.ssh_allowed_ip
   tags           = local.common_tags
 }
+  module "parameter_store_module" {
+   source               = "./module/parameter_store_module"
+   parameter_store_name = var.parameter_store_name
+   tags                 = local.common_tags
+ }
 
-module "parameter_store_module" {
-  source               = "./module/parameter_store_module"
-  parameter_store_name = var.parameter_store_name
-  tags                 = local.common_tags
-}
-
-module "code_pipeline_module" {
-  source                   = "./module/code_pipeline_module"
-  instance_name            = module.ec2_instance_module.instance_details.instance_name
-  FullRepositoryId         = var.FullRepositoryId
-  BranchName               = var.BranchName
-  CodeStarConnectionArn    = var.CodeStarConnectionArn
-  s3BucketNameForArtifacts = var.s3BucketNameForArtifacts
-  tags                     = local.common_tags
-}
+# module "code_pipeline_module" {
+#   source                   = "./module/code_pipeline_module"
+#   instance_name            = module.ec2_instance_module.instance_details.instance_name
+#   FullRepositoryId         = var.FullRepositoryId
+#   BranchName               = var.BranchName
+#   CodeStarConnectionArn    = var.CodeStarConnectionArn
+#   s3BucketNameForArtifacts = var.s3BucketNameForArtifacts
+#   tags                     = local.common_tags
+# }
 
 
 
