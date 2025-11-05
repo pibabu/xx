@@ -6,7 +6,7 @@
 # variable "ami_ssm_parameter" {
 #   description = "SSM parameter name for the AMI ID. For Amazon Linux AMI SSM parameters see [reference](https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-public-parameters-ami.html)"
 #   type        = string
-#   default     = "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2" 
+#   default     = "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"  
 # } 
 
 variable "ec2_role_permissions" { 
