@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# kein nginx, kein certbot -->   deploy script schlägt fehl
+
+
 # Update and install packages
 sudo yum update -y
 sudo yum install -y python3 python3-pip python3-devel gcc nginx docker
