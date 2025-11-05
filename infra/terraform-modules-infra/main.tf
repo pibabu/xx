@@ -12,27 +12,24 @@ locals {
 }
 
 module "vpc" {
-  source = "./modules/vpc"
+  source = "./module/vpc"
   
   vpc_cidr             = var.vpc_cidr
   availability_zone    = var.availability_zone
-  tags                 = var.tags
+  tags                 = local.common_tags
 }
 
 
 module "ec2_instance_module" {
-  source = "./modules/ec2_instance_module"
+  source = "./module/ec2_instance_module"
   
   vpc_id               = module.vpc.vpc_id
   subnet_id            = module.vpc.public_subnet_id
-  
-  ami                  = var.ami
-  instance_type        = var.instance_type
-  instance_name        = var.instance_name
-  ec2_role_permissions = var.ec2_role_permissions
+  ami            = "ami-0a5b0d219e493191b" # ami: aws linux machine
+  instance_type  = "t3.micro"
+  instance_name  = "fastapi"
   codepipeline_s3_bucket = var.codepipeline_s3_bucket  
-  security_group_allowed_ports = var.security_group_allowed_ports
-  tags                 = var.tags
+  tags           = local.common_tags
 }
 # module "parameter_store_module" {
 #   source               = "./module/parameter_store_module"
@@ -49,6 +46,8 @@ module "ec2_instance_module" {
 #   s3BucketNameForArtifacts = var.s3BucketNameForArtifacts
 #   tags                     = local.common_tags
 # }
+
+
 
 
 
