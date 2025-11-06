@@ -25,12 +25,30 @@ module "ec2_instance_module" {
   
   vpc_id               = module.vpc.vpc_id
   subnet_id            = module.vpc.public_subnet_id
-  ami            = "ami-0a5b0d219e493191b" # ami: aws linux machine
+  ami            = "ami-0a5b0d219e493191b" 
   instance_type  = "t3.micro"
   instance_name  = "fastapi"
   codepipeline_s3_bucket = var.codepipeline_s3_bucket  
   tags           = local.common_tags
 }
+
+
+resource "aws_eip" "static_ip" {
+  domain = "vpc"
+  tags   = local.common_tags
+  
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Associate EIP with EC2 instance
+resource "aws_eip_association" "eip_assoc" {
+  instance_id   = module.ec2.instance_id
+  allocation_id = aws_eip.static_ip.id
+}
+
+
 # module "parameter_store_module" {
 #   source               = "./module/parameter_store_module"
 #   parameter_store_name = var.parameter_store_name
