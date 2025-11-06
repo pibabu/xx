@@ -65,5 +65,5 @@ variable "codepipeline_s3_bucket" {
 variable "openai_api_key" {
   type        = string
   description = "Name of the AWS SSM Parameter Store"
-  default     = "/project/be"
+  default     = "/fastapi-app/openai-api-key"
 }

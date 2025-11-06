@@ -5,6 +5,10 @@ variable "ami_ssm_parameter" {
   default     = "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"  
 } 
 
+variable "openai_api_key_parameter_name" {
+  type        = string
+}
+
 # Amazon Elastic Compute Cloud (Amazon EC2) Amazon Machine Image (AMI) public parameters are available for Amazon Linux 2, 
 # Amazon Linux 2023 (AL2023) from the following paths:
 
@@ -16,8 +20,8 @@ variable "ec2_role_permissions" {
   default = [
     "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess",
     "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess",
-    "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
-    "arn:aws:iam::aws:policy/AmazonSSMManagedEC2InstanceDefaultPolicy",
+    "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore", # nicht nötig
+    "arn:aws:iam::aws:policy/AmazonSSMManagedEC2InstanceDefaultPolicy", # anscheinend
   ]
 }
 

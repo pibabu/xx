@@ -17,6 +17,10 @@
 ### <----- security risk--- key in terraform state
 
 
+data "aws_ssm_parameter" "ami" {
+  name = var.ami_ssm_parameter
+}
+
 resource "aws_iam_role" "EC2_Service_Role" {
   name = "ec2-role"
 
@@ -61,7 +65,22 @@ resource "aws_iam_role_policy" "s3_artifact_access" {
   })
 }
 
+resource "aws_iam_role_policy" "ssm_parameter_access" {
+  name = "${var.instance_name}-ssm-parameter-access"
+  role = aws_iam_role.ec2_role.id
 
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ssm:GetParameter",
+        "ssm:GetParameters"
+      ]
+      Resource = "arn:aws:ssm:*:*:parameter${var.openai_api_key_parameter_name}"
+    }]
+  })
+}
 resource "aws_iam_instance_profile" "EC2_instance_profile" {
   name = aws_iam_role.EC2_Service_Role.name
   role = aws_iam_role.EC2_Service_Role.id

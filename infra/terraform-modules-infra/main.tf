@@ -29,14 +29,16 @@ module "ec2_instance_module" {
   instance_name  = "fastapi"
   codepipeline_s3_bucket = var.codepipeline_s3_bucket  
   tags           = local.common_tags
+  openai_api_key_parameter_name = module.parameter_store_module.openai_api_key_parameter_name ## nötig? wird bei vpc nicht gemacht
   
 }
-
 module "parameter_store_module" {
   source           = "./module/parameter_store_module"
   openai_api_key   = var.openai_api_key
   tags             = local.common_tags
 }
+
+
 
 resource "aws_eip" "static_ip" {
   domain = "vpc"
