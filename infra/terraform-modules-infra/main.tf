@@ -78,6 +78,6 @@ resource "aws_eip_association" "eip_assoc" {
 output "module_ec2_instance_details" {
   value = module.ec2_instance_module.instance_details
 }
-# output "ec2_instance_ssh_details" {
-#   value = "ssh -i \"first.pem\" ec2-user@${aws_eip.static_ip.public_ip}"
-# }
+output "ec2_instance_ssh_details" {
+  value = "ssh -i \"first.pem\" ec2-user@${aws_eip.static_ip.public_ip}"
+}
