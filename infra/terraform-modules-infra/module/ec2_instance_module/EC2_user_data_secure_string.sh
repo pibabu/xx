@@ -82,6 +82,7 @@ log "Fetching secrets from SSM Parameter Store..."
 set +e  # Don't exit on error for SSM fetch
 OPENAI_API_KEY=$(aws ssm get-parameter \
     --name "/fastapi-app/openai-api-key" \
+    --with-decryption \
     --region $REGION \
     --query 'Parameter.Value' \
     --output text 2>/dev/null)
@@ -99,7 +100,7 @@ EOF
     sudo chown $APP_USER:$APP_USER $APP_DIR/.env
 fi
 
-# Fetch SSL certificate
+# Fetch SSL certificate (if using custom cert instead of Certbot)
 SSL_CERT=$(aws ssm get-parameter \
     --name "/fastapi-app/ssl-cert" \
     --with-decryption \
@@ -114,17 +115,17 @@ SSL_KEY=$(aws ssm get-parameter \
     --query 'Parameter.Value' \
     --output text 2>/dev/null)
 
-if [ -z "$SSL_CERT" ] || [ "$SSL_CERT" = "None" ] || [ -z "$SSL_KEY" ] || [ "$SSL_KEY" = "None" ]; then
-    log "ERROR: SSL certificates not found in SSM Parameter Store"
-    log "Please create parameters: /fastapi-app/ssl-cert and /fastapi-app/ssl-key"
-    exit 1
+USING_CUSTOM_SSL=false
+if [ ! -z "$SSL_CERT" ] && [ "$SSL_CERT" != "None" ] && [ ! -z "$SSL_KEY" ] && [ "$SSL_KEY" != "None" ]; then
+    log "Using custom SSL certificates from SSM"
+    echo "$SSL_CERT" | sudo tee /etc/ssl/certs/my-cert.pem > /dev/null
+    echo "$SSL_KEY" | sudo tee /etc/ssl/private/my-key.pem > /dev/null
+    sudo chmod 644 /etc/ssl/certs/my-cert.pem
+    sudo chmod 600 /etc/ssl/private/my-key.pem
+    USING_CUSTOM_SSL=true
+else
+    log "No custom SSL certificates found"
 fi
-
-log "Installing SSL certificates from SSM..."
-echo "$SSL_CERT" | sudo tee /etc/ssl/certs/my-cert.pem > /dev/null
-echo "$SSL_KEY" | sudo tee /etc/ssl/private/my-key.pem > /dev/null
-sudo chmod 644 /etc/ssl/certs/my-cert.pem
-sudo chmod 600 /etc/ssl/private/my-key.pem
 
 set -e  # Re-enable exit on error
 
@@ -133,7 +134,9 @@ set -e  # Re-enable exit on error
 # ==========================================
 log "Configuring Nginx..."
 
-sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null <<EOF
+if [ "$USING_CUSTOM_SSL" = true ]; then
+    # Use custom SSL certificates
+    sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null <<EOF
 server {
     listen 80;
     server_name $DOMAIN;
@@ -168,6 +171,27 @@ server {
     }
 }
 EOF
+else
+    # Create temporary HTTP-only config for Certbot
+    sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN;
+
+    location / {
+        proxy_pass http://127.0.0.1:$APP_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+    }
+}
+EOF
+fi
 
 # ==========================================
 # START NGINX
@@ -176,6 +200,25 @@ log "Starting Nginx..."
 sudo nginx -t
 sudo systemctl enable nginx
 sudo systemctl start nginx
+sleep 5
+
+# ==========================================
+# SSL CERTIFICATE WITH CERTBOT
+# ==========================================
+if [ "$USING_CUSTOM_SSL" = false ]; then
+    log "Obtaining SSL certificate with Certbot..."
+    sudo certbot --nginx \
+        -d $DOMAIN \
+        --non-interactive \
+        --agree-tos \
+        -m $ADMIN_EMAIL \
+        --redirect
+    
+    # Setup auto-renewal
+    log "Setting up SSL certificate auto-renewal..."
+    echo "0 3 * * * root certbot renew --quiet && systemctl reload nginx" | \
+        sudo tee /etc/cron.d/certbot-renew > /dev/null
+fi
 
 # ==========================================
 # IAM ROLE VERIFICATION
