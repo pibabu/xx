@@ -1,18 +1,22 @@
 #!/bin/bash
 set -e
 
-# kein nginx, kein certbot -->   deploy script schlägt fehl
+# Log everything
+exec > >(tee /var/log/user-data.log)
+exec 2>&1
 
+echo "=== Starting user data script ==="
 
 # Update and install packages
 sudo yum update -y
 sudo yum install -y python3 python3-pip python3-devel gcc nginx docker
 
-# Start and enable Docker + Nginx
-sudo systemctl enable --now docker
-sudo systemctl enable --now nginx
+# Install Certbot FIRST (before configuring Nginx)
+sudo amazon-linux-extras install epel -y
+sudo yum install -y certbot python3-certbot-nginx
 
-# Add ec2-user to docker group
+# Start and enable Docker
+sudo systemctl enable --now docker
 sudo usermod -a -G docker ec2-user
 
 # Install docker-compose
@@ -28,9 +32,10 @@ sudo -u ec2-user python3 -m venv /home/ec2-user/fastapi-app/venv
 sudo -u ec2-user /home/ec2-user/fastapi-app/venv/bin/pip install --upgrade pip
 sudo -u ec2-user /home/ec2-user/fastapi-app/venv/bin/pip install fastapi uvicorn[standard] websockets openai pydantic python-dotenv
 
-# Write your Nginx config
+# Create TEMPORARY HTTP-only Nginx config for Certbot
 sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null <<'EOF'
 server {
+    listen 80;
     server_name ey-ios.com;
 
     location / {
@@ -41,35 +46,18 @@ server {
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
     }
-
-    listen 443 ssl;
-    ssl_certificate /etc/letsencrypt/live/ey-ios.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ey-ios.com/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-}
-
-server {
-    if ($host = ey-ios.com) {
-        return 301 https://$host$request_uri;
-    }
-    listen 80;
-    server_name ey-ios.com;
-    return 404;
 }
 EOF
 
+# Start Nginx with HTTP-only config
 sudo nginx -t
-sudo systemctl restart nginx
+sudo systemctl enable --now nginx
 
-
-
-# Install Certbot and generate certificates
-sudo amazon-linux-extras install epel -y
-sudo yum install -y certbot python3-certbot-nginx
-
-# Obtain certificate (replace email with yours)
-sudo certbot --nginx -d ey-ios.com --non-interactive --agree-tos -m admin@ey-ios.com
+echo "=== Obtaining SSL certificate ==="
+# Obtain certificate (this will auto-configure Nginx for HTTPS)
+sudo certbot --nginx -d ey-ios.com --non-interactive --agree-tos -m admin@ey-ios.com --redirect
 
 # Enable auto-renewal
 echo "0 3 * * * root certbot renew --quiet && systemctl reload nginx" | sudo tee /etc/cron.d/certbot-renew
+
+echo "=== User data script completed successfully ==="
