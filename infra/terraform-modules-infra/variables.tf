@@ -57,13 +57,3 @@ variable "codepipeline_s3_bucket" {
   type        = string
   default     = "codepipeline-eu-central-1-fdd7ab796ddd-49eb-9554-347fb077325a"
 }
-
-# ----------------------------------------------------------------
-# # --------------- AWS PARAMETER STORE VARIABLES ------------------
-# # ----------------------------------------------------------------
-
-variable "openai_api_key" {
-  type        = string
-  description = "Name of the AWS SSM Parameter Store"
-  default     = "/fastapi-app/openai-api-key"
-}

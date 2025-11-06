@@ -78,18 +78,43 @@ echo "=== User data script completed successfully ==="
 
 ### set ###
 
-#  OPENAI_API_KEY=$(aws ssm get-parameter \
-#       --name "${var.openai_api_key_parameter_name}" \
-#       --with-decryption \
-#       --region $(curl -s http://169.254.169.254/latest/meta-data/placement/region) \
-#       --query 'Parameter.Value' \
-#       --output text)
-    
-#     # Set environment variable system-wide
-#     echo "export OPENAI_API_KEY='$OPENAI_API_KEY'" >> /etc/environment
-    
-#     # Also create a .env file for the application
-#     mkdir -p /opt/fastapi
-#     echo "OPENAI_API_KEY=$OPENAI_API_KEY" > /opt/fastapi/.env
-#     chmod 600 /opt/fastapi/.env
-    
+
+    #!/bin/bash
+# Fetch SSL cert from SSM
+aws ssm get-parameter \
+  --name "/fastapi-app/ssl-cert" \
+  --with-decryption \
+  --region eu-central-1 \
+  --query 'Parameter.Value' \
+  --output text > /etc/ssl/certs/my-cert.pem
+
+# Fetch private key
+aws ssm get-parameter \
+  --name "/fastapi-app/ssl-key" \
+  --with-decryption \
+  --region eu-central-1 \
+  --query 'Parameter.Value' \
+  --output text > /etc/ssl/private/my-key.pem
+
+# Set proper permissions
+chmod 644 /etc/ssl/certs/my-cert.pem
+chmod 600 /etc/ssl/private/my-key.pem
+
+#!/bin/bash
+
+# Fetch OpenAI API key from SSM
+OPENAI_API_KEY=$(aws ssm get-parameter \
+  --name "/fastapi-app/openai-api-key" \
+  --region eu-central-1 \
+  --query 'Parameter.Value' \
+  --output text)
+
+# Export as environment variable
+export OPENAI_API_KEY="$OPENAI_API_KEY"
+
+# Or write to .env file for your FastAPI app
+echo "OPENAI_API_KEY=$OPENAI_API_KEY" > /home/ubuntu/fastapi-app/.env
+
+# Set proper permissions
+chmod 600 /home/ubuntu/fastapi-app/.env
+chown ubuntu:ubuntu /home/ubuntu/fastapi-app/.env

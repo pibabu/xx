@@ -19,26 +19,16 @@ module "vpc" {
   tags                 = local.common_tags
 }
 
-
 module "ec2_instance_module" {
-  source = "./module/ec2_instance_module"
-  vpc_id               = module.vpc.vpc_id
-  subnet_id            = module.vpc.public_subnet_id
-  ami            = "ami-0a5b0d219e493191b" 
-  instance_type  = "t3.micro"
-  instance_name  = "fastapi"
-  codepipeline_s3_bucket = var.codepipeline_s3_bucket  
-  tags           = local.common_tags
-  openai_api_key_parameter_name = module.parameter_store_module.openai_api_key_parameter_name ## nötig? wird bei vpc nicht gemacht
-  
+  source                        = "./module/ec2_instance_module"
+  vpc_id                        = module.vpc.vpc_id
+  subnet_id                     = module.vpc.public_subnet_id
+  ami                           = "ami-0a5b0d219e493191b"
+  instance_type                 = "t3.micro"
+  instance_name                 = "fastapi"
+  codepipeline_s3_bucket        = var.codepipeline_s3_bucket
+  tags                          = local.common_tags
 }
-module "parameter_store_module" {
-  source           = "./module/parameter_store_module"
-  openai_api_key   = var.openai_api_key
-  tags             = local.common_tags
-}
-
-
 
 resource "aws_eip" "static_ip" {
   domain = "vpc"
