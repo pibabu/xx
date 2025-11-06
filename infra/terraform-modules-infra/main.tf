@@ -29,8 +29,14 @@ module "ec2_instance_module" {
   instance_name  = "fastapi"
   codepipeline_s3_bucket = var.codepipeline_s3_bucket  
   tags           = local.common_tags
+  
 }
 
+module "parameter_store_module" {
+  source           = "./module/parameter_store_module"
+  openai_api_key   = var.openai_api_key
+  tags             = local.common_tags
+}
 
 resource "aws_eip" "static_ip" {
   domain = "vpc"
@@ -44,25 +50,6 @@ resource "aws_eip_association" "eip_assoc" {
   instance_id   = module.ec2_instance_module.instance_id
   allocation_id = aws_eip.static_ip.id
 }
-
-
-# module "parameter_store_module" {
-#   source               = "./module/parameter_store_module"
-#   parameter_store_name = var.parameter_store_name
-#   tags                 = local.common_tags
-#  }
-
-# module "code_pipeline_module" {
-#   source                   = "./module/code_pipeline_module"
-#   instance_name            = module.ec2_instance_module.instance_details.instance_name
-#   FullRepositoryId         = var.FullRepositoryId
-#   BranchName               = var.BranchName
-#   CodeStarConnectionArn    = var.CodeStarConnectionArn
-#   s3BucketNameForArtifacts = var.s3BucketNameForArtifacts
-#   tags                     = local.common_tags
-# }
-
-
 
 
 

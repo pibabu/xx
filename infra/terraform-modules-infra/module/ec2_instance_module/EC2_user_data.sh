@@ -75,3 +75,21 @@ sudo systemctl status nginx --no-pager
 sudo systemctl status docker --no-pager
 
 echo "=== User data script completed successfully ==="
+
+### set ###
+
+#  OPENAI_API_KEY=$(aws ssm get-parameter \
+#       --name "${var.openai_api_key_parameter_name}" \
+#       --with-decryption \
+#       --region $(curl -s http://169.254.169.254/latest/meta-data/placement/region) \
+#       --query 'Parameter.Value' \
+#       --output text)
+    
+#     # Set environment variable system-wide
+#     echo "export OPENAI_API_KEY='$OPENAI_API_KEY'" >> /etc/environment
+    
+#     # Also create a .env file for the application
+#     mkdir -p /opt/fastapi
+#     echo "OPENAI_API_KEY=$OPENAI_API_KEY" > /opt/fastapi/.env
+#     chmod 600 /opt/fastapi/.env
+    

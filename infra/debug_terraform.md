@@ -25,3 +25,7 @@ terraform destroy \
   -target=module.vpc
 
 ###geht nicht
+
+## debug ec2
+
+sudo cat /var/log/cloud-init-output.log

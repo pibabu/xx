@@ -1,13 +1,14 @@
-# ----------------------------------------------------------------
-# ----------------- AWS CODE PIPELINE VARIABLES ------------------
-# ----------------------------------------------------------------
 
-# #https://us-east-1.console.aws.amazon.com/ec2/home?region=us-east-1#AMICatalog:
-# variable "ami_ssm_parameter" {
-#   description = "SSM parameter name for the AMI ID. For Amazon Linux AMI SSM parameters see [reference](https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-public-parameters-ami.html)"
-#   type        = string
-#   default     = "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"  
-# } 
+variable "ami_ssm_parameter" {
+  description = "SSM parameter name for the AMI ID. For Amazon Linux AMI SSM parameters see [reference](https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-public-parameters-ami.html)"
+  type        = string
+  default     = "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"  
+} 
+
+# Amazon Elastic Compute Cloud (Amazon EC2) Amazon Machine Image (AMI) public parameters are available for Amazon Linux 2, 
+# Amazon Linux 2023 (AL2023) from the following paths:
+
+# Amazon Linux 2, and Amazon Linux 2023: /aws/service/ami-amazon-linux-latest
 
 variable "ec2_role_permissions" { 
   type        = list(string)
@@ -20,6 +21,7 @@ variable "ec2_role_permissions" {
   ]
 }
 
+## nötig ? --->
 variable "codepipeline_s3_bucket" {
   description = "S3 bucket name for CodePipeline artifacts"
   type        = string
