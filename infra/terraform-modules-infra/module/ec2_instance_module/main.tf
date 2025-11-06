@@ -14,6 +14,8 @@ resource "aws_key_pair" "ec2_key_pair" {
   
   tags = var.tags
 }
+### <----- security risk--- key in terraform state
+
 
 resource "aws_iam_role" "EC2_Service_Role" {
   name = "ec2-role"
