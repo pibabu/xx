@@ -19,6 +19,13 @@ module "vpc" {
   tags                 = local.common_tags
 }
 
+data "terraform_remote_state" "persistent" {
+  backend = "local"  
+  config = {
+    path = "../persistent/terraform.tfstate"
+  }
+}
+
 module "ec2_instance_module" {
   source                        = "./module/ec2_instance_module"
   vpc_id                        = module.vpc.vpc_id
@@ -44,18 +51,3 @@ resource "aws_eip_association" "eip_assoc" {
   allocation_id = data.terraform_remote_state.persistent.outputs.eip_allocation_id
 }
 
-
-# ----------------------------------------------------------------
-# ---------------------- OUTPUT SECTION --------------------------
-# ----------------------------------------------------------------
-
-
-# # output "parameter_store_name" {
-# #   value = module.parameter_store_module.parameter_store_name
-# }
-output "module_ec2_instance_details" {
-  value = module.ec2_instance_module.instance_details
-}
-output "ec2_instance_ssh_details" {
-  value = "ssh -i \"first.pem\" ec2-user@${aws_eip.static_ip.public_ip}"
-}

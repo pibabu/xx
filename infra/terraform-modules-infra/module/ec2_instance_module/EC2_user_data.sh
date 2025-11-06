@@ -142,7 +142,8 @@ server {
 }
 
 server {
-    listen 443 ssl http2;
+    listen 443 ssl;     
+    http2 on; 
     server_name $DOMAIN;
 
     ssl_certificate /etc/pki/tls/certs/my-cert.pem;
