@@ -14,7 +14,7 @@ REGISTRY_LOCK="container_registry.lock"
 BASE_URL="ey-ios.com"
 NETWORK_NAME="user_shared_network"
 
-# File paths
+# File paths  ehhh vereinfachen
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 DOCKERFILE_TEMPLATE="$SCRIPT_DIR/Dockerfile"
@@ -62,6 +62,7 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 USER_HASH=$(generate_hash)
 PRIVATE_VOLUME="${CONTAINER_NAME}_private"
 USER_DIR="$SCRIPT_DIR/users/${CONTAINER_NAME}"
+
 
 mkdir -p "$USER_DIR"
 

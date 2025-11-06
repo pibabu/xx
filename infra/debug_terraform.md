@@ -2,20 +2,18 @@
 $env:TF_LOG = "TRACE"
 $env:TF_LOG_PATH = "terraform.log"
 
-terraform plan
-terraform apply
-
 # Disable when done
 Remove-Item Env:\TF_LOG
 Remove-Item Env:\TF_LOG_PATH
-Log Levels
-powershell$env:TF_LOG = "TRACE"   # Most verbose - everything
+
+# Log Levels
+$env:TF_LOG = "TRACE"   # Most verbose - everything
 $env:TF_LOG = "DEBUG"   # Detailed API calls
 $env:TF_LOG = "INFO"    # General info (recommended start)
 $env:TF_LOG = "WARN"    # Warnings only
 $env:TF_LOG = "ERROR"   # Errors only
 
-## Lifecycle elastic IP Problem
+# Lifecycle elastic IP Problem
 
 alles löschen außer eip:
 
@@ -24,7 +22,7 @@ terraform destroy \
   -target=module.ec2_instance_module \
   -target=module.vpc
 
-###geht nicht
+---> geht nicht
 
 ## debug ec2
 

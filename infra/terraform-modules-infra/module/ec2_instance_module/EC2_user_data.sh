@@ -120,12 +120,13 @@ if [ -z "$SSL_CERT" ] || [ "$SSL_CERT" = "None" ] || [ -z "$SSL_KEY" ] || [ "$SS
     exit 1
 fi
 
-log "Installing SSL certificates from SSM..."
-echo "$SSL_CERT" | sudo tee /etc/ssl/certs/my-cert.pem > /dev/null
-echo "$SSL_KEY" | sudo tee /etc/ssl/private/my-key.pem > /dev/null
-sudo chmod 644 /etc/ssl/certs/my-cert.pem
-sudo chmod 600 /etc/ssl/private/my-key.pem
 
+log "Installing SSL certificates from SSM..."
+sudo mkdir -p /etc/pki/tls/private
+echo "$SSL_CERT" | sudo tee /etc/pki/tls/certs/my-cert.pem > /dev/null
+echo "$SSL_KEY" | sudo tee /etc/pki/tls/private/my-key.pem > /dev/null
+sudo chmod 644 /etc/pki/tls/certs/my-cert.pem
+sudo chmod 600 /etc/pki/tls/private/my-key.pem
 set -e  # Re-enable exit on error
 
 # ==========================================
@@ -144,8 +145,8 @@ server {
     listen 443 ssl http2;
     server_name $DOMAIN;
 
-    ssl_certificate /etc/ssl/certs/my-cert.pem;
-    ssl_certificate_key /etc/ssl/private/my-key.pem;
+    ssl_certificate /etc/pki/tls/certs/my-cert.pem;
+    ssl_certificate_key /etc/pki/tls/private/my-key.pem;
     
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;

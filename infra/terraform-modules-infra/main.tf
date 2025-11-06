@@ -30,20 +30,19 @@ module "ec2_instance_module" {
   tags                          = local.common_tags
 }
 
-resource "aws_eip" "static_ip" {
-  domain = "vpc"
-  tags   = local.common_tags
+# resource "aws_eip" "static_ip" {
+#   domain = "vpc"
+#   tags   = local.common_tags
   
-  # lifecycle {
-  #   prevent_destroy = true
-  # }
-}
+#   # lifecycle {
+#   #   prevent_destroy = true
+#   # }
+# }
+
 resource "aws_eip_association" "eip_assoc" {
   instance_id   = module.ec2_instance_module.instance_id
-  allocation_id = aws_eip.static_ip.id
+  allocation_id = data.terraform_remote_state.persistent.outputs.eip_allocation_id
 }
-
-
 
 
 # ----------------------------------------------------------------

@@ -24,8 +24,3 @@ output "ec2_public_ip" {
 #   value       = module.ec2_instance_module.elastic_ip
 # }
 
-# output "ec2_private_key_pem" {
-#   description = "Private key for SSH (sensitive)"
-#   value       = module.ec2_instance_module.private_key_pem
-#   sensitive   = true
-# }
