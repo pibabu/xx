@@ -1,17 +1,6 @@
-# ================================================================
-# STEP 1: FETCH EXISTING RESOURCES FROM AWS
-# ================================================================
-# Use data sources to import existing infrastructure
-# Then gradually migrate to Terraform management
-
-# ================================================================
-# DATA SOURCES - Fetch existing resources
-# ================================================================
-
-# Fetch existing EC2 instance by tag or ID
 data "aws_instance" "existing_ec2" {
   # Option 1: Find by instance ID
-  instance_id = "i-08398c0c49763792d"  # Replace with your instance ID
+  instance_id = "i-08398c0c49763792d" 
   
   # Option 2: Find by tag (comment out instance_id above if using this)
   # filter {
@@ -39,11 +28,6 @@ data "aws_iam_role" "existing_role" {
 
 
 
-
-
-# ================================================================
-# OUTPUTS - Verify what we fetched
-# ================================================================
 
 output "fetched_instance_info" {
   description = "Details of existing EC2 instance"

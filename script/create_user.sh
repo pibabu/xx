@@ -2,267 +2,245 @@
 set -e
 set -o pipefail
 
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Configuration
 SHARED_VOLUME="shared_data"
 REGISTRY_FILE="container_registry.json"
 REGISTRY_LOCK="container_registry.lock"
 BASE_URL="ey-ios.com"
 NETWORK_NAME="user_shared_network"
 
-# File paths  ehhh vereinfachen
+# Paths - simplified
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PARENT_DIR="$(dirname "$SCRIPT_DIR")"
-DOCKERFILE_TEMPLATE="$SCRIPT_DIR/Dockerfile"
-COMPOSE_TEMPLATE="$SCRIPT_DIR/docker-compose.yml"
-SEED_DATA_PRIVATE="$PARENT_DIR/workdir"
-SEED_DATA_SHARED="$PARENT_DIR/data_shared"
+TEMPLATES_DIR="$SCRIPT_DIR"
+SEED_PRIVATE="$SCRIPT_DIR/../workdir"
+SEED_SHARED="$SCRIPT_DIR/../data_shared"
 
-print_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-print_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
-print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+# Logging
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
+# Generate random hash
 generate_hash() {
     openssl rand -hex 16
 }
 
+# Validate container name
 validate_name() {
-    local name="$1"
-    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        print_error "Invalid container name. Use only alphanumeric characters, hyphens, and underscores."
+    [[ "$1" =~ ^[a-zA-Z0-9_-]+$ ]] || {
+        log_error "Invalid name. Use only: a-z A-Z 0-9 _ -"
         exit 1
-    fi
+    }
 }
 
+# Usage
 usage() {
     echo "Usage: $0 <container_name> <user_tag>"
-    echo "Example: $0 user_alice development"
+    echo "Example: $0 alice development"
     exit 1
 }
 
-[ $# -ne 2 ] && { print_error "Invalid arguments"; usage; }
+# Validate arguments
+[ $# -ne 2 ] && { log_error "Invalid arguments"; usage; }
 
 CONTAINER_NAME="$1"
 USER_TAG="$2"
-
 validate_name "$CONTAINER_NAME"
 
-# Validate required files
-[ ! -f "$DOCKERFILE_TEMPLATE" ] && { print_error "Dockerfile not found: $DOCKERFILE_TEMPLATE"; exit 1; }
-[ ! -f "$COMPOSE_TEMPLATE" ] && { print_error "Docker Compose template not found: $COMPOSE_TEMPLATE"; exit 1; }
-[ ! -d "$SEED_DATA_PRIVATE" ] && print_warning "Private data path not found: $SEED_DATA_PRIVATE (will create empty)"
-[ ! -d "$SEED_DATA_SHARED" ] && print_warning "Shared data path not found: $SEED_DATA_SHARED (will skip)"
+# Validate templates exist
+[ ! -f "$TEMPLATES_DIR/Dockerfile" ] && { log_error "Missing: Dockerfile"; exit 1; }
+[ ! -f "$TEMPLATES_DIR/docker-compose.yml" ] && { log_error "Missing: docker-compose.yml"; exit 1; }
 
+# Generate metadata
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 USER_HASH=$(generate_hash)
 PRIVATE_VOLUME="${CONTAINER_NAME}_private"
-USER_DIR="$SCRIPT_DIR/users/${CONTAINER_NAME}"
+BUILD_DIR="$SCRIPT_DIR/build/$CONTAINER_NAME"
 
+# Create build directory
+mkdir -p "$BUILD_DIR"
+log_success "Build directory: $BUILD_DIR"
 
-mkdir -p "$USER_DIR"
-
-# Create shared network if needed
+# Create shared network
 if ! docker network inspect "$NETWORK_NAME" &>/dev/null; then
-    print_info "Creating shared network: $NETWORK_NAME"
+    log_info "Creating network: $NETWORK_NAME"
     docker network create "$NETWORK_NAME" >/dev/null
 fi
 
-# Ensure shared volume exists
+# Create shared volume
 if ! docker volume inspect "$SHARED_VOLUME" &>/dev/null; then
-    print_info "Creating shared volume: $SHARED_VOLUME"
+    log_info "Creating shared volume: $SHARED_VOLUME"
     docker volume create "$SHARED_VOLUME" >/dev/null
 fi
 
 # Setup private volume
 if docker volume inspect "$PRIVATE_VOLUME" &>/dev/null; then
-    print_warning "Volume '$PRIVATE_VOLUME' already exists"
+    log_warning "Volume '$PRIVATE_VOLUME' exists"
     
-    # Check if running interactively
     if [ -t 0 ]; then
-        read -p "Recreate private volume? (yes/no): " confirm
+        read -p "Recreate? (yes/no): " confirm
     else
-        # Non-interactive: always recreate for clean deployments
-        print_info "Non-interactive mode: forcing volume recreation"
         confirm="yes"
+        log_info "Non-interactive: forcing recreation"
     fi
     
     if [ "$confirm" = "yes" ]; then
-        print_info "Removing old volume..."
         docker volume rm "$PRIVATE_VOLUME" >/dev/null
         docker volume create "$PRIVATE_VOLUME" >/dev/null
-        print_success "New volume created"
+        log_success "Volume recreated"
     fi
 else
     docker volume create "$PRIVATE_VOLUME" >/dev/null
+    log_success "Volume created: $PRIVATE_VOLUME"
 fi
 
-
-# Seed private volume   
-if [ -d "$SEED_DATA_PRIVATE" ]; then
-    print_info "Seeding private volume..."
+# Seed private volume
+if [ -d "$SEED_PRIVATE" ]; then
+    log_info "Seeding private volume..."
     docker run --rm \
-      -v "$PRIVATE_VOLUME:/mnt/target" \
-      -v "$SEED_DATA_PRIVATE:/mnt/source:ro" \
+      -v "$PRIVATE_VOLUME:/target" \
+      -v "$SEED_PRIVATE:/source:ro" \
       ubuntu:latest \
-      bash -c "cp -r /mnt/source/* /mnt/target/ 2>/dev/null || true; chown -R 1000:1000 /mnt/target" 2>&1 | grep -v "debconf" || true
-    print_success "Private data seeded"
+      bash -c "cp -r /source/* /target/ 2>/dev/null || true; chown -R 1000:1000 /target" 2>&1 | grep -v "debconf" || true
+    log_success "Private data seeded"
+else
+    log_warning "No private seed data: $SEED_PRIVATE"
 fi
 
-# Seed shared volume with CLI prompt
-if [ -d "$SEED_DATA_SHARED" ]; then
-    IS_EMPTY=$(docker run --rm -v "$SHARED_VOLUME:/mnt/shared" ubuntu:latest bash -c "[ -z \"\$(ls -A /mnt/shared 2>/dev/null)\" ] && echo 'yes' || echo 'no'")
+# Seed shared volume
+if [ -d "$SEED_SHARED" ]; then
+    IS_EMPTY=$(docker run --rm -v "$SHARED_VOLUME:/shared" ubuntu:latest bash -c "[ -z \"\$(ls -A /shared 2>/dev/null)\" ] && echo 'yes' || echo 'no'")
     
     if [ "$IS_EMPTY" = "yes" ]; then
-        print_info "Shared volume is empty. Seeding with data from: $SEED_DATA_SHARED"
+        log_info "Seeding empty shared volume..."
         SHOULD_SEED="yes"
     else
-        print_warning "Shared volume already contains data!"
-        echo ""
-        echo "Current files in shared volume:"
-        docker run --rm -v "$SHARED_VOLUME:/mnt/shared" ubuntu:latest ls -lh /mnt/shared 2>/dev/null | tail -n +2 || echo "  (unable to list)"
-        echo ""
-        read -p "Overwrite shared volume with fresh data? (yes/no): " SHOULD_SEED
+        log_warning "Shared volume contains data"
+        docker run --rm -v "$SHARED_VOLUME:/shared" ubuntu:latest ls -lh /shared 2>/dev/null | tail -n +2 || true
+        read -p "Overwrite? (yes/no): " SHOULD_SEED
     fi
     
     if [ "$SHOULD_SEED" = "yes" ]; then
-        print_info "Clearing and reseeding shared volume..."
         docker run --rm \
-          -v "$SHARED_VOLUME:/mnt/target" \
-          -v "$SEED_DATA_SHARED:/mnt/source:ro" \
+          -v "$SHARED_VOLUME:/target" \
+          -v "$SEED_SHARED:/source:ro" \
           ubuntu:latest \
-          bash -c "
-            rm -rf /mnt/target/* /mnt/target/.*  2>/dev/null || true
-            cp -r /mnt/source/* /mnt/target/ 2>/dev/null || true
-            chown -R 1000:1000 /mnt/target
-          " 2>&1 | grep -v "debconf" || true
-        print_success "Shared data seeded"
-    else
-        print_info "Keeping existing shared volume data"
+          bash -c "rm -rf /target/* /target/.* 2>/dev/null || true; cp -r /source/* /target/ 2>/dev/null || true; chown -R 1000:1000 /target" 2>&1 | grep -v "debconf" || true
+        log_success "Shared data seeded"
     fi
+else
+    log_warning "No shared seed data: $SEED_SHARED"
 fi
 
-# Initialize registry (always ensure it exists)
-print_info "Checking shared volume registry..."
-docker run --rm \
-  -v "$SHARED_VOLUME:/mnt/shared" \
-  ubuntu:latest \
-  bash -c "
-    mkdir -p /mnt/shared
-    if [ ! -f /mnt/shared/$REGISTRY_FILE ]; then
-      echo '[]' > /mnt/shared/$REGISTRY_FILE
-      chmod 666 /mnt/shared/$REGISTRY_FILE
-    fi
-  " 2>&1 | grep -v "debconf" || true
+# Initialize registry
+log_info "Initializing registry..."
+docker run --rm -v "$SHARED_VOLUME:/shared" ubuntu:latest bash -c "
+  mkdir -p /shared
+  [ ! -f /shared/$REGISTRY_FILE ] && echo '[]' > /shared/$REGISTRY_FILE
+  chmod 666 /shared/$REGISTRY_FILE
+" 2>&1 | grep -v "debconf" || true
 
 # Register container
-print_info "Registering container in shared registry..."
-docker run --rm \
-  -v "$SHARED_VOLUME:/mnt/shared" \
-  ubuntu:latest \
-  bash -c "
-    set -e
-    apt-get update -qq && apt-get install -y -qq jq >/dev/null 2>&1
-    REGISTRY='/mnt/shared/$REGISTRY_FILE'
-    LOCKFILE='/mnt/shared/$REGISTRY_LOCK'
+log_info "Registering container..."
+docker run --rm -v "$SHARED_VOLUME:/shared" ubuntu:latest bash -c "
+  set -e
+  apt-get update -qq && apt-get install -y -qq jq >/dev/null 2>&1
+  
+  REGISTRY='/shared/$REGISTRY_FILE'
+  LOCKFILE='/shared/$REGISTRY_LOCK'
+  
+  RETRIES=0
+  while ! mkdir \"\$LOCKFILE\" 2>/dev/null; do
+    sleep 0.1
+    RETRIES=\$((RETRIES + 1))
+    [ \$RETRIES -gt 50 ] && exit 1
+  done
+  trap 'rmdir \"\$LOCKFILE\" 2>/dev/null || true' EXIT
+  
+  NEW_ENTRY='{\"container_name\":\"$CONTAINER_NAME\",\"user_tag\":\"$USER_TAG\",\"created\":\"$TIMESTAMP\"}'
+  jq --argjson entry \"\$NEW_ENTRY\" '. += [\$entry]' \"\$REGISTRY\" > /tmp/new.json
+  mv /tmp/new.json \"\$REGISTRY\"
+" >/dev/null 2>&1
+log_success "Container registered"
 
-    RETRIES=0
-    while ! mkdir \"\$LOCKFILE\" 2>/dev/null; do
-      sleep 0.1
-      RETRIES=\$((RETRIES + 1))
-      [ \$RETRIES -gt 50 ] && { echo 'Lock timeout'; exit 1; }
-    done
-    trap 'rmdir \"\$LOCKFILE\" 2>/dev/null || true' EXIT
-
-    NEW_ENTRY='{\"container_name\":\"$CONTAINER_NAME\",\"user_tag\":\"$USER_TAG\",\"created\":\"$TIMESTAMP\"}'
-    jq --argjson entry \"\$NEW_ENTRY\" '. += [\$entry]' \"\$REGISTRY\" > /tmp/registry_new.json
-    mv /tmp/registry_new.json \"\$REGISTRY\"
-  " >/dev/null 2>&1
-
-print_success "Container registered"
-
-# Prepare configuration
-print_info "Preparing configuration..."
-cp "$DOCKERFILE_TEMPLATE" "$USER_DIR/Dockerfile"
+# Prepare build files
+log_info "Preparing build files..."
+cp "$TEMPLATES_DIR/Dockerfile" "$BUILD_DIR/Dockerfile"
 
 sed -e "s/{{CONTAINER_NAME}}/$CONTAINER_NAME/g" \
     -e "s/{{PRIVATE_VOLUME}}/$PRIVATE_VOLUME/g" \
     -e "s/{{TAGS}}/$USER_TAG/g" \
     -e "s/{{USER_HASH}}/$USER_HASH/g" \
-    "$COMPOSE_TEMPLATE" > "$USER_DIR/docker-compose.yml"
+    "$TEMPLATES_DIR/docker-compose.yml" > "$BUILD_DIR/docker-compose.yml"
 
-print_success "Configuration created"
+log_success "Build files ready"
 
-# Check if container exists
+# Remove existing container
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    print_warning "Container '$CONTAINER_NAME' already exists"
+    log_warning "Container exists"
     read -p "Remove and recreate? (yes/no): " confirm
-    if [ "$confirm" = "yes" ]; then
-        docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
-    else
-        print_error "Deployment aborted"
-        exit 1
-    fi
+    [ "$confirm" != "yes" ] && { log_error "Aborted"; exit 1; }
+    docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 fi
 
-# Build and start container
-print_info "Building and starting container..."
+# Build and start
+log_info "Building container..."
 
-cd "$USER_DIR"
-
-# Disable BuildKit and Buildx to avoid --allow flag issues
 export DOCKER_BUILDKIT=0
 export COMPOSE_DOCKER_CLI_BUILD=0
-export BUILDKIT_PROGRESS=plain
 
-# Use standalone docker-compose (v1 style) to avoid buildx
-COMPOSE_BIN="/usr/local/bin/docker-compose"
+cd "$BUILD_DIR"
 
-if [ -f "$COMPOSE_BIN" ]; then
-    print_info "Using: $COMPOSE_BIN (BuildKit disabled)"
-    "$COMPOSE_BIN" build --no-cache
-    "$COMPOSE_BIN" up -d
-else
-    print_error "docker-compose not found at $COMPOSE_BIN"
+if ! docker-compose build --no-cache 2>&1; then
+    log_error "Build failed"
+    exit 1
+fi
+
+log_info "Starting container..."
+if ! docker-compose up -d 2>&1; then
+    log_error "Start failed"
     exit 1
 fi
 
 cd - >/dev/null
 
-# Wait for container
-print_info "Waiting for container..."
+# Verify
 sleep 3
-
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    print_success "Container is running"
+    log_success "Container running"
 else
-    print_error "Container failed to start"
-    print_error "Check logs: cd $USER_DIR && docker-compose logs"
+    log_error "Container not running"
+    log_error "Check logs: docker logs $CONTAINER_NAME"
     exit 1
 fi
 
-echo ""
-echo "=============================================="
-print_success "SETUP COMPLETE"
-echo "=============================================="
-echo ""
-echo "📦 Container: $CONTAINER_NAME"
-echo "🏷️  User Tag: $USER_TAG"
-echo "🔑 User Hash: $USER_HASH"
-echo "🔗 Access URL: https://$BASE_URL?hash=$USER_HASH"
-echo ""
-echo "💡 Quick Access:"
-echo "   docker exec -it $CONTAINER_NAME bash"
-echo ""
-echo "📂 Configuration: $USER_DIR"
-echo "📂 Private Data: /llm/private (read-write)"
-echo "📂 Shared Data: /llm/shared (read-write)"
-echo ""
-echo ""
-echo "=============================================="
+# Success output
+cat <<EOF
 
-### change...no user dir on source with dockerfile etc. logs should be sorted by name only, not numbers or date
+==============================================
+🎉 DEPLOYMENT COMPLETE
+==============================================
+
+📦 Container:  $CONTAINER_NAME
+🏷️  Tag:        $USER_TAG
+🔑 Hash:       $USER_HASH
+🔗 URL:        https://$BASE_URL?hash=$USER_HASH
+
+💡 Access:     docker exec -it $CONTAINER_NAME bash
+
+📂 Private:    /llm/private (rw)
+📂 Shared:     /llm/shared (rw)
+
+📁 Build:      $BUILD_DIR
+
+==============================================
+
+EOF
