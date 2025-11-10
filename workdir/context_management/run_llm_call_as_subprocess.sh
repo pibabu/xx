@@ -18,7 +18,7 @@ runonetimellm() {
     echo "---" >> "$log_file"
     
     # Make API call and capture full response
-    local response=$(curl -s -X POST "${API_BASE}/api/llm" \
+    local response=$(curl -s -X POST "${API_BASE}/api/llm/quick" \
         -H "Content-Type: application/json" \
         -d "$(jq -n \
             --arg prompt "$prompt" \

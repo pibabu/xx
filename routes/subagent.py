@@ -1,8 +1,16 @@
+import asyncio
+import os
+import json
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
+from services.bash_tool import BASH_TOOL_SCHEMA, execute_bash_command
 
-router = APIRouter(prefix="/api/llm", tags=["conversation"]) ##
+
+load_dotenv()
+
+router = APIRouter(prefix="/api/llm", tags=["llm"]) ##
 
 
 @router.post("/quick")
