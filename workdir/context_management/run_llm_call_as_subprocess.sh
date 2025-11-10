@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# Completely separate from conversation history - creates isolated execution context.
+
 export API_BASE="${API_BASE:-http://${API_HOST}:${API_PORT}}"
 export USER_HASH="${USER_HASH}"
 export LOG_DIR="${LOG_DIR:-/app/logs/cron}"

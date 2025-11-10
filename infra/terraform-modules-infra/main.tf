@@ -33,7 +33,7 @@ module "ec2_instance_module" {
   ami                           = "ami-0a5b0d219e493191b"
   instance_type                 = "t3.micro"
   instance_name                 = "fastapi"
-  codepipeline_s3_bucket        = var.codepipeline_s3_bucket
+  codepipeline_s3_bucket        = var.codepipeline_s3_bucket  ## ??
   tags                          = local.common_tags
 }
 

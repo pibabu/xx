@@ -12,7 +12,7 @@ data "aws_instance" "existing_ec2" {
 # Fetch existing security group
 data "aws_security_group" "existing_sg" {
   # Option 1: By ID
-  id = "sg-0323eb49744458416"  # Replace with your SG ID
+  id = "sg-0323eb49744458416"  
   
   # Option 2: By name
   # filter {
@@ -23,7 +23,7 @@ data "aws_security_group" "existing_sg" {
 
 # Fetch existing IAM role
 data "aws_iam_role" "existing_role" {
-  name = "EC2-deploy-pipeline-role"  # Replace with your role name
+  name = "EC2-deploy-pipeline-role"
 }
 
 
