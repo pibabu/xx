@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from routes import conversation, websocket, health
+from routes import conversation, websocket, health, subagent
 
 app = FastAPI()
 
@@ -16,6 +16,7 @@ app.add_middleware(
 app.include_router(conversation.router)
 app.include_router(websocket.router)
 app.include_router(health.router)
+app.include_router(subagent.router)
 
 @app.get("/")
 async def get():
