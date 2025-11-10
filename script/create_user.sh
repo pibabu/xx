@@ -1,246 +1,287 @@
 #!/bin/bash
 set -e
-set -o pipefail
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# ==========================================
+# CONFIGURATION
+# ==========================================
+REGION="eu-central-1"
+DOMAIN="ey-ios.com"
+ADMIN_EMAIL="admin@ey-ios.com"
+APP_DIR="/home/ec2-user/fastapi-app"
+APP_USER="ec2-user"
+APP_PORT=8000
+USER_DATA_MOUNT="/mnt/user-data"
 
-# Configuration
-SHARED_VOLUME="shared_data"
-REGISTRY_FILE="container_registry.json"
-REGISTRY_LOCK="container_registry.lock"
-BASE_URL="ey-ios.com"
-NETWORK_NAME="user_shared_network"
+# ==========================================
+# LOGGING SETUP
+# ==========================================
+exec > >(tee /var/log/user-data.log)
+exec 2>&1
 
-# Paths - simplified
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TEMPLATES_DIR="$SCRIPT_DIR"
-SEED_PRIVATE="$SCRIPT_DIR/../workdir"
-SEED_SHARED="$SCRIPT_DIR/../data_shared"
-
-# Logging
-log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
-
-# Generate random hash
-generate_hash() {
-    openssl rand -hex 16
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-# Validate container name
-validate_name() {
-    [[ "$1" =~ ^[a-zA-Z0-9_-]+$ ]] || {
-        log_error "Invalid name. Use only: a-z A-Z 0-9 _ -"
-        exit 1
+log "=== Starting user data script ==="
+log "=== Running on Amazon Linux 2023 ==="
+
+# ==========================================
+# EBS VOLUME SETUP
+# ==========================================
+log "Setting up EBS volume for user data..."
+
+# Wait for the additional volume to attach (typically /dev/nvme1n1 on Nitro instances)
+log "Waiting for EBS volume to attach..."
+DEVICE="/dev/nvme1n1"
+TIMEOUT=60
+ELAPSED=0
+
+while [ ! -e "$DEVICE" ] && [ $ELAPSED -lt $TIMEOUT ]; do
+    sleep 2
+    ELAPSED=$((ELAPSED + 2))
+    log "Waiting for $DEVICE... (${ELAPSED}s)"
+done
+
+if [ ! -e "$DEVICE" ]; then
+    log "ERROR: EBS volume did not attach within ${TIMEOUT} seconds"
+    log "Continuing without user data volume..."
+else
+    log "EBS volume detected at $DEVICE"
+    
+    # Check if filesystem already exists
+    if ! blkid "$DEVICE" > /dev/null 2>&1; then
+        log "Formatting new EBS volume with ext4..."
+        sudo mkfs -t ext4 "$DEVICE"
+        log "Filesystem created successfully"
+    else
+        log "Existing filesystem detected on $DEVICE"
+    fi
+    
+    # Create mount point
+    log "Creating mount point at $USER_DATA_MOUNT..."
+    sudo mkdir -p "$USER_DATA_MOUNT"
+    
+    # Mount the volume
+    log "Mounting EBS volume..."
+    sudo mount "$DEVICE" "$USER_DATA_MOUNT"
+    
+    # Get UUID for fstab
+    UUID=$(sudo blkid -s UUID -o value "$DEVICE")
+    log "Volume UUID: $UUID"
+    
+    # Add to fstab for automatic mount on reboot (if not already present)
+    if ! grep -q "$UUID" /etc/fstab; then
+        log "Adding entry to /etc/fstab for automatic mounting..."
+        echo "UUID=$UUID $USER_DATA_MOUNT ext4 defaults,nofail 0 2" | sudo tee -a /etc/fstab
+    else
+        log "fstab entry already exists"
+    fi
+    
+    # Create directory structure for user data
+    log "Creating user data directory structure..."
+    sudo mkdir -p "$USER_DATA_MOUNT/users"
+    sudo mkdir -p "$USER_DATA_MOUNT/shared"
+    sudo mkdir -p "$USER_DATA_MOUNT/uploads"
+    sudo mkdir -p "$USER_DATA_MOUNT/temp"
+    
+    # Set permissions
+    sudo chmod 755 "$USER_DATA_MOUNT/users"
+    sudo chmod 755 "$USER_DATA_MOUNT/shared"
+    sudo chmod 755 "$USER_DATA_MOUNT/uploads"
+    sudo chmod 1777 "$USER_DATA_MOUNT/temp"  # Sticky bit for temp directory
+    
+    # Set ownership
+    sudo chown -R $APP_USER:$APP_USER "$USER_DATA_MOUNT"
+    
+    log "User data volume setup completed successfully"
+    log "Mount point: $USER_DATA_MOUNT"
+    log "Available space: $(df -h $USER_DATA_MOUNT | tail -1 | awk '{print $4}')"
+fi
+
+# ==========================================
+# SYSTEM UPDATES & PACKAGE INSTALLATION
+# ==========================================
+log "Installing system packages..."
+sudo dnf update -y
+sudo dnf install -y \
+    python3 \
+    python3-pip \
+    python3-devel \
+    gcc \
+    nginx \
+    docker \
+    aws-cli
+
+# ==========================================
+# DOCKER SETUP
+# ==========================================
+log "Configuring Docker..."
+sudo systemctl enable docker
+sudo systemctl start docker
+sudo usermod -a -G docker $APP_USER
+
+# Install docker-compose
+log "Installing docker-compose..."
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
+    -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# ==========================================
+# APPLICATION DIRECTORY SETUP
+# ==========================================
+log "Setting up application directory..."
+sudo mkdir -p $APP_DIR
+sudo chown $APP_USER:$APP_USER $APP_DIR
+
+# ==========================================
+# PYTHON ENVIRONMENT SETUP
+# ==========================================
+log "Creating Python virtual environment..."
+sudo -u $APP_USER python3 -m venv $APP_DIR/venv
+sudo -u $APP_USER $APP_DIR/venv/bin/pip install --upgrade pip
+sudo -u $APP_USER $APP_DIR/venv/bin/pip install \
+    fastapi \
+    uvicorn[standard] \
+    websockets \
+    openai \
+    pydantic \
+    python-dotenv \
+    supervisor
+
+# ==========================================
+# FETCH SECRETS FROM SSM PARAMETER STORE
+# ==========================================
+log "Fetching secrets from SSM Parameter Store..."
+
+# Fetch OpenAI API key
+set +e  # Don't exit on error for SSM fetch
+OPENAI_API_KEY=$(aws ssm get-parameter \
+    --name "/fastapi-app/openai-api-key" \
+    --region $REGION \
+    --query 'Parameter.Value' \
+    --output text 2>/dev/null)
+
+if [ -z "$OPENAI_API_KEY" ] || [ "$OPENAI_API_KEY" = "None" ]; then
+    log "WARNING: Could not fetch OPENAI_API_KEY from Parameter Store"
+    log "Please ensure the parameter exists: /fastapi-app/openai-api-key"
+else
+    log "Successfully fetched OPENAI_API_KEY"
+    # Create .env file
+    sudo -u $APP_USER tee $APP_DIR/.env > /dev/null <<EOF
+OPENAI_API_KEY=$OPENAI_API_KEY
+USER_DATA_PATH=$USER_DATA_MOUNT
+EOF
+    sudo chmod 600 $APP_DIR/.env
+    sudo chown $APP_USER:$APP_USER $APP_DIR/.env
+fi
+
+# Fetch SSL certificate
+SSL_CERT=$(aws ssm get-parameter \
+    --name "/fastapi-app/ssl-cert" \
+    --with-decryption \
+    --region $REGION \
+    --query 'Parameter.Value' \
+    --output text 2>/dev/null)
+
+SSL_KEY=$(aws ssm get-parameter \
+    --name "/fastapi-app/ssl-key" \
+    --with-decryption \
+    --region $REGION \
+    --query 'Parameter.Value' \
+    --output text 2>/dev/null)
+
+if [ -z "$SSL_CERT" ] || [ "$SSL_CERT" = "None" ] || [ -z "$SSL_KEY" ] || [ "$SSL_KEY" = "None" ]; then
+    log "ERROR: SSL certificates not found in SSM Parameter Store"
+    log "Please create parameters: /fastapi-app/ssl-cert and /fastapi-app/ssl-key"
+    exit 1
+fi
+
+log "Installing SSL certificates from SSM..."
+sudo mkdir -p /etc/pki/tls/private
+echo "$SSL_CERT" | sudo tee /etc/pki/tls/certs/my-cert.pem > /dev/null
+echo "$SSL_KEY" | sudo tee /etc/pki/tls/private/my-key.pem > /dev/null
+sudo chmod 644 /etc/pki/tls/certs/my-cert.pem
+sudo chmod 600 /etc/pki/tls/private/my-key.pem
+set -e  # Re-enable exit on error
+
+# ==========================================
+# NGINX CONFIGURATION
+# ==========================================
+log "Configuring Nginx..."
+
+sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN;
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl;     
+    http2 on; 
+    server_name $DOMAIN;
+
+    ssl_certificate /etc/pki/tls/certs/my-cert.pem;
+    ssl_certificate_key /etc/pki/tls/private/my-key.pem;
+    
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    # Increase client body size for file uploads
+    client_max_body_size 100M;
+
+    location / {
+        proxy_pass http://127.0.0.1:$APP_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        
+        # WebSocket timeouts
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
     }
 }
-
-# Usage
-usage() {
-    echo "Usage: $0 <container_name> <user_tag>"
-    echo "Example: $0 alice development"
-    exit 1
-}
-
-# Validate arguments
-[ $# -ne 2 ] && { log_error "Invalid arguments"; usage; }
-
-CONTAINER_NAME="$1"
-USER_TAG="$2"
-validate_name "$CONTAINER_NAME"
-
-# Validate templates exist
-[ ! -f "$TEMPLATES_DIR/Dockerfile" ] && { log_error "Missing: Dockerfile"; exit 1; }
-[ ! -f "$TEMPLATES_DIR/docker-compose.yml" ] && { log_error "Missing: docker-compose.yml"; exit 1; }
-
-# Generate metadata
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-USER_HASH=$(generate_hash)
-PRIVATE_VOLUME="${CONTAINER_NAME}_private"
-BUILD_DIR="$SCRIPT_DIR/build/$CONTAINER_NAME"
-
-# Create build directory
-mkdir -p "$BUILD_DIR"
-log_success "Build directory: $BUILD_DIR"
-
-# Create shared network
-if ! docker network inspect "$NETWORK_NAME" &>/dev/null; then
-    log_info "Creating network: $NETWORK_NAME"
-    docker network create "$NETWORK_NAME" >/dev/null
-fi
-
-# Create shared volume
-if ! docker volume inspect "$SHARED_VOLUME" &>/dev/null; then
-    log_info "Creating shared volume: $SHARED_VOLUME"
-    docker volume create "$SHARED_VOLUME" >/dev/null
-fi
-
-# Setup private volume
-if docker volume inspect "$PRIVATE_VOLUME" &>/dev/null; then
-    log_warning "Volume '$PRIVATE_VOLUME' exists"
-    
-    if [ -t 0 ]; then
-        read -p "Recreate? (yes/no): " confirm
-    else
-        confirm="yes"
-        log_info "Non-interactive: forcing recreation"
-    fi
-    
-    if [ "$confirm" = "yes" ]; then
-        docker volume rm "$PRIVATE_VOLUME" >/dev/null
-        docker volume create "$PRIVATE_VOLUME" >/dev/null
-        log_success "Volume recreated"
-    fi
-else
-    docker volume create "$PRIVATE_VOLUME" >/dev/null
-    log_success "Volume created: $PRIVATE_VOLUME"
-fi
-
-# Seed private volume
-if [ -d "$SEED_PRIVATE" ]; then
-    log_info "Seeding private volume..."
-    docker run --rm \
-      -v "$PRIVATE_VOLUME:/target" \
-      -v "$SEED_PRIVATE:/source:ro" \
-      ubuntu:latest \
-      bash -c "cp -r /source/* /target/ 2>/dev/null || true; chown -R 1000:1000 /target" 2>&1 | grep -v "debconf" || true
-    log_success "Private data seeded"
-else
-    log_warning "No private seed data: $SEED_PRIVATE"
-fi
-
-# Seed shared volume
-if [ -d "$SEED_SHARED" ]; then
-    IS_EMPTY=$(docker run --rm -v "$SHARED_VOLUME:/shared" ubuntu:latest bash -c "[ -z \"\$(ls -A /shared 2>/dev/null)\" ] && echo 'yes' || echo 'no'")
-    
-    if [ "$IS_EMPTY" = "yes" ]; then
-        log_info "Seeding empty shared volume..."
-        SHOULD_SEED="yes"
-    else
-        log_warning "Shared volume contains data"
-        docker run --rm -v "$SHARED_VOLUME:/shared" ubuntu:latest ls -lh /shared 2>/dev/null | tail -n +2 || true
-        read -p "Overwrite? (yes/no): " SHOULD_SEED
-    fi
-    
-    if [ "$SHOULD_SEED" = "yes" ]; then
-        docker run --rm \
-          -v "$SHARED_VOLUME:/target" \
-          -v "$SEED_SHARED:/source:ro" \
-          ubuntu:latest \
-          bash -c "rm -rf /target/* /target/.* 2>/dev/null || true; cp -r /source/* /target/ 2>/dev/null || true; chown -R 1000:1000 /target" 2>&1 | grep -v "debconf" || true
-        log_success "Shared data seeded"
-    fi
-else
-    log_warning "No shared seed data: $SEED_SHARED"
-fi
-
-# Initialize registry
-log_info "Initializing registry..."
-docker run --rm -v "$SHARED_VOLUME:/shared" ubuntu:latest bash -c "
-  mkdir -p /shared
-  [ ! -f /shared/$REGISTRY_FILE ] && echo '[]' > /shared/$REGISTRY_FILE
-  chmod 666 /shared/$REGISTRY_FILE
-" 2>&1 | grep -v "debconf" || true
-
-# Register container
-log_info "Registering container..."
-docker run --rm -v "$SHARED_VOLUME:/shared" ubuntu:latest bash -c "
-  set -e
-  apt-get update -qq && apt-get install -y -qq jq >/dev/null 2>&1
-  
-  REGISTRY='/shared/$REGISTRY_FILE'
-  LOCKFILE='/shared/$REGISTRY_LOCK'
-  
-  RETRIES=0
-  while ! mkdir \"\$LOCKFILE\" 2>/dev/null; do
-    sleep 0.1
-    RETRIES=\$((RETRIES + 1))
-    [ \$RETRIES -gt 50 ] && exit 1
-  done
-  trap 'rmdir \"\$LOCKFILE\" 2>/dev/null || true' EXIT
-  
-  NEW_ENTRY='{\"container_name\":\"$CONTAINER_NAME\",\"user_tag\":\"$USER_TAG\",\"created\":\"$TIMESTAMP\"}'
-  jq --argjson entry \"\$NEW_ENTRY\" '. += [\$entry]' \"\$REGISTRY\" > /tmp/new.json
-  mv /tmp/new.json \"\$REGISTRY\"
-" >/dev/null 2>&1
-log_success "Container registered"
-
-# Prepare build files
-log_info "Preparing build files..."
-cp "$TEMPLATES_DIR/Dockerfile" "$BUILD_DIR/Dockerfile"
-
-sed -e "s/{{CONTAINER_NAME}}/$CONTAINER_NAME/g" \
-    -e "s/{{PRIVATE_VOLUME}}/$PRIVATE_VOLUME/g" \
-    -e "s/{{TAGS}}/$USER_TAG/g" \
-    -e "s/{{USER_HASH}}/$USER_HASH/g" \
-    "$TEMPLATES_DIR/docker-compose.yml" > "$BUILD_DIR/docker-compose.yml"
-
-log_success "Build files ready"
-
-# Remove existing container
-if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    log_warning "Container exists"
-    read -p "Remove and recreate? (yes/no): " confirm
-    [ "$confirm" != "yes" ] && { log_error "Aborted"; exit 1; }
-    docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
-fi
-
-# Build and start
-log_info "Building container..."
-
-export DOCKER_BUILDKIT=0
-export COMPOSE_DOCKER_CLI_BUILD=0
-
-cd "$BUILD_DIR"
-
-if ! docker-compose build --no-cache 2>&1; then
-    log_error "Build failed"
-    exit 1
-fi
-
-log_info "Starting container..."
-if ! docker-compose up -d 2>&1; then
-    log_error "Start failed"
-    exit 1
-fi
-
-cd - >/dev/null
-
-# Verify
-sleep 3
-if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    log_success "Container running"
-else
-    log_error "Container not running"
-    log_error "Check logs: docker logs $CONTAINER_NAME"
-    exit 1
-fi
-
-# Success output
-cat <<EOF
-
-==============================================
-🎉 DEPLOYMENT COMPLETE
-==============================================
-
-📦 Container:  $CONTAINER_NAME
-🏷️  Tag:        $USER_TAG
-🔑 Hash:       $USER_HASH
-🔗 URL:        https://$BASE_URL?hash=$USER_HASH
-
-💡 Access:     docker exec -it $CONTAINER_NAME bash
-
-📂 Private:    /llm/private (rw)
-📂 Shared:     /llm/shared (rw)
-
-📁 Build:      $BUILD_DIR
-
-==============================================
-
 EOF
+
+# ==========================================
+# START NGINX
+# ==========================================
+log "Starting Nginx..."
+sudo nginx -t
+sudo systemctl enable nginx
+sudo systemctl start nginx
+
+# ==========================================
+# IAM ROLE VERIFICATION
+# ==========================================
+log "Verifying IAM role and SSM access..."
+aws sts get-caller-identity || log "WARNING: AWS credentials may not be configured"
+
+# ==========================================
+# SERVICE STATUS CHECK
+# ==========================================
+log "=== Service Status Check ==="
+sudo systemctl status nginx --no-pager || true
+sudo systemctl status docker --no-pager || true
+
+# ==========================================
+# FINAL MOUNT STATUS
+# ==========================================
+if [ -d "$USER_DATA_MOUNT" ]; then
+    log "=== EBS Volume Mount Status ==="
+    df -h "$USER_DATA_MOUNT" || true
+    log "=== User Data Directory Structure ==="
+    ls -la "$USER_DATA_MOUNT" || true
+fi
+
+log "=== User data script completed successfully ==="
+log "=== Next steps: Deploy your FastAPI application ==="
+log "=== Application directory: $APP_DIR ==="
+log "=== Environment file: $APP_DIR/.env ==="
+log "=== User data storage: $USER_DATA_MOUNT ==="
