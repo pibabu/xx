@@ -22,22 +22,22 @@ resource "aws_eip" "static_ip" {
 
 # EBS
 
-resource "aws_ebs_volume" "user_data" {
-  availability_zone = aws_instance.app_server.availability_zone
-  size              = 100  # change
-  type              = "gp3"
-  encrypted         = true
+# resource "aws_ebs_volume" "user_data" {
+#   availability_zone = aws_instance.app_server.availability_zone
+#   size              = 100  # change
+#   type              = "gp3"
+#   encrypted         = true
   
-  iops       = 3000
-  throughput = 125  # MB/s
+#   iops       = 3000
+#   throughput = 125  # MB/s
 
-  tags = {
-    Name = "user-container-storage"
-  }
-}
+#   tags = {
+#     Name = "user-container-storage"
+#   }
+# }
 
-resource "aws_volume_attachment" "user_data_attach" {
-  device_name = "/dev/sdf"
-  volume_id   = aws_ebs_volume.user_data.id
-  instance_id = aws_instance.app_server.id
-}
+# resource "aws_volume_attachment" "user_data_attach" {
+#   device_name = "/dev/sdf"
+#   volume_id   = aws_ebs_volume.user_data.id
+#   instance_id = aws_instance.app_server.id
+# }

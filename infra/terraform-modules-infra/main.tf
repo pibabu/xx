@@ -46,8 +46,10 @@ module "ec2_instance_module" {
 #   # }
 # }
 
-resource "aws_eip_association" "eip_assoc" {
-  instance_id   = module.ec2_instance_module.instance_id
-  allocation_id = data.terraform_remote_state.persistent.outputs.eip_allocation_id
-}
+
+#  !!
+# resource "aws_eip_association" "eip_assoc" {
+#   instance_id   = module.ec2_instance_module.instance_id
+#   allocation_id = data.terraform_remote_state.persistent.outputs.eip_allocation_id
+# }
 
